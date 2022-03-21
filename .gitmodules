@@ -1,0 +1,6 @@
+[submodule "utils/GWAS_pipeline"]
+	path = utils/GWAS_pipeline
+	url = https://github.com/cistib/GWAS_pipeline
+[submodule "utils/pytorch_coma"]
+	path = utils/pytorch_coma
+	url = https://github.com/rbonazzola/pytorch_coma
