@@ -1,1 +1,1 @@
-# CardiacCOMA
+# Cardiac Convolutional Mesh Autoencoders
