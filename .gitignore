@@ -1,0 +1,10 @@
+*.idea
+*.ipynb_checkpoints/
+*__pycache__/
+*.pyc
+*.pkl
+mlruns/
+lightning_logs/
+*.sif
+data/synthetic/synthetic_*
+config_files/*
