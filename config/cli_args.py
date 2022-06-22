@@ -2,9 +2,11 @@ import argparse
 from config.load_config import load_yaml_config, to_dict, flatten_dict, rsetattr, rgetattr
 from copy import deepcopy
 
+
 class ArgumentAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         rsetattr(namespace, self.dest, values)
+
 
 class kwargs_append_action(argparse.Action):
     """
@@ -19,13 +21,13 @@ class kwargs_append_action(argparse.Action):
             raise argparse.ArgumentError(self, f"Could not parse argument \"{values}\" as k1=v1 k2=v2 ... format")
         setattr(args, self.dest, d)
 
+
 network_architecture_args = {
     ("--n_channels",): {
         "help": "Number of channels (feature maps). If the rest of the --n_channels_* arguments are not provided, it will assign these numbers to the encoder, content decoder and style decoder.",
         "nargs": "+", "type": int,
         "action": ArgumentAction,
-        "dest": "config.network_architecture.convolution.channels"
-    },
+        "dest": "config.network_architecture.convolution.channels"},
     ("--reduction_factors",): {
         "help": "Decimation factors for the mesh",
         "nargs": "+", "type": int,
@@ -36,26 +38,16 @@ network_architecture_args = {
         "nargs": "+", "type": int,
         "action": ArgumentAction,
         "dest": "config.network_architecture.convolution.channels_enc"},
-    ("--n_channels_dec_c",): {
-        "help": "Number of channels (feature maps) in the content decoder, from the most hidden layer to the output.",
-        "nargs": "+", "type": int,
-        "action": ArgumentAction,
-        "dest": "config.network_architecture.convolution.channels_dec_c"},
-    ("--n_channels_dec_s",): {
+    ("--n_channels_dec",): {
         "help": "Number of channels (feature maps) in the style decoder, from the most hidden layer to the output.",
         "nargs": "+", "type": int,
         "action": ArgumentAction,
         "dest": "config.network_architecture.convolution.channels_dec_s"},
-    ("--latent_dim_c",): {
-        "help": "Dimension of the content part of the latent space",
+    ("--latent_dim",): {
+        "help": "Dimension of the latent space",
         "type": int,
         "action": ArgumentAction,
         "dest": "config.network_architecture.latent_dim_c"},
-    ("--latent_dim_s",): {
-        "help": "Dimension of the style part of the latent space",
-        "type": int,
-        "action": ArgumentAction,
-        "dest": "config.network_architecture.latent_dim_s"},
     ("--activation_function",): {
         "help": "Activation functions to be used",
         "nargs": "+", "type": str,
@@ -66,16 +58,6 @@ network_architecture_args = {
         "nargs": "+", "type": int,
         "action": ArgumentAction,
         "dest": "config.network_architecture.convolution.parameters.polynomial_degree"},
-    ("--z_aggr_function",): {
-        "help": "Temporal aggregation method",
-        "type": str,
-        "action": ArgumentAction,
-        "dest": "config.network_architecture.z_aggr_function"},
-    ("--z_aggr_function",): {
-        "help": "Temporal aggregation method",
-        "type": str,
-        "action": ArgumentAction,
-        "dest": "config.network_architecture.z_aggr_function"},
     ("--only_decoder",): {
         "help": "Flag to run only the decoder",
         "action": "store_true"},
@@ -101,15 +83,24 @@ loss_args = {
         "dest": "config.loss.regularization.weight",
         "type": float,
         "action": ArgumentAction},
-    ("--w_s",): {
-        "help": "weight of the \"style\" reconstruction term in the lost function",
-        "dest": "config.loss.reconstruction_s.weight",
-        "type": float,
+}
+
+cardiac_dataset_args = {
+    ("--cardiac_dataset.meshes_file",): {
+        "help": "",
+        "dest": "config.cardiac_dataset.meshes_file",
+        "type" str,
+        "action": ArgumentAction},
+    ("--cardiac_dataset.procrustes_transforms_file", ): {
+        "help": "Pickle binary file containing the rotation and traslation matrix from generalized Procrustes analysis",
+        "dest": "config.cardiac_dataset.procrustes_transforms_file",
+        "type" str,
         "action": ArgumentAction},
 }
 
+
 dataset_args = {
-    ("--dataset.amplitude_static_max",): {
+    ("--synthetic_dataset.amplitude_static_max",): {
         "help": "" ,
         "dest": "config.dataset.parameters.amplitude_static_max" , 
         "type": float,
@@ -122,11 +113,6 @@ dataset_args = {
     ("--dataset.N_subjects",): {
         "help": "",
         "dest": "config.dataset.parameters.N" , 
-        "type": int,
-        "action": ArgumentAction},
-    ("--dataset.N_timeframes",): {
-        "help": "",
-        "dest": "config.dataset.parameters.T" , 
         "type": int,
         "action": ArgumentAction},
     ("--dataset.freq_max",): {
@@ -144,7 +130,7 @@ dataset_args = {
         "dest": "config.dataset.parameters.mesh_resolution" , 
         "type": int,
         "action": ArgumentAction},
-    ("--dataset.center_around_mean",): {
+    ("--dataset.center_around_mean_shape",): {
         "help": "Not working! Always sets this value to True.",
         "dest": "config.dataset.preprocessing.center_around_mean" , 
         "type": bool,
@@ -214,6 +200,7 @@ CLI_args = {
     ** network_architecture_args,
     ** loss_args,
     ** training_args,
+    ** cardiac_dataset_args,
     ** dataset_args,
     ** mlflow_args,
     ("--show_config",): {
@@ -243,6 +230,7 @@ def overwrite_config_items(ref_config, config_to_replace):
     '''
 
     config = deepcopy(ref_config)
+
     for k, v in flatten_dict(to_dict(config_to_replace)).items():
         rsetattr(config, k, v)
 
