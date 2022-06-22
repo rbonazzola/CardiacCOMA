@@ -5,9 +5,12 @@ import sys; sys.path.append("..")
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from models.Model3D import Autoencoder3DMesh as Autoencoder
+from models.lightning.ComaLightningModule import CoMA
+
 from pytorch_lightning.callbacks import RichModelSummary
-from data.DataModules import CardiacMeshPopulationDM
-from data.SyntheticDataModules import SyntheticMeshesDM
+from data.DataModules import DataModule as DataModule
+# from data.SyntheticDataModules import SyntheticMeshesDM
 from utils import mesh_operations
 from utils.mesh_operations import Mesh
 
@@ -34,13 +37,22 @@ def get_datamodule(config, perform_setup=True):
 
     # TODO: MERGE THESE TWO INTO ONE DATAMODULE CLASS
     if config.dataset.data_type.startswith("cardiac"):
-        dm = CardiacMeshPopulationDM(cardiac_population=data, batch_size=config.batch_size)
+        dataset_cls = CardiacMeshPopulationDataset
+        dataset_args = {
+            meshes = 
+        }
+    
     elif config.dataset.data_type.startswith("synthetic"):
-        dm = SyntheticMeshesDM(
-            batch_size=config.batch_size,
-            data_params=config.dataset.parameters.__dict__,
-            preprocessing_params=config.dataset.preprocessing
-        )
+        dataset_cls = SyntheticMeshPopulationDataset
+        dataset_args =
+
+    dm = DataModule(
+       dataset_cls,
+       dataset_args,
+       split_lengths=self.split_lengths,
+       batch_size=config.batch_size
+    )
+
 
     if perform_setup:
         dm.setup()
@@ -49,6 +61,7 @@ def get_datamodule(config, perform_setup=True):
 
 
 def get_coma_matrices(config, dm, cache=True, from_cached=True):
+
     '''
     :param config: configuration Namespace, with a list called "network_architecture.pooling.parameters.downsampling_factors" as attribute.
     :param dm: a PyTorch Lightning datamodule, with attributes train_dataset.dataset.mesh_popu and train_dataset.dataset.mesh_popu.template
@@ -59,8 +72,10 @@ def get_coma_matrices(config, dm, cache=True, from_cached=True):
     '''
 
     mesh_popu = dm.train_dataset.dataset.mesh_popu
+
     matrices_hash = hash(
         (mesh_popu._object_hash, tuple(config.network_architecture.pooling.parameters.downsampling_factors))) % 1000000
+
     cached_file = f"data/cached/matrices/{matrices_hash}.pkl"
 
     if from_cached and os.path.exists(cached_file):
@@ -95,16 +110,11 @@ def get_coma_args(config, dm):
         "num_features": net.n_features,
         "n_layers": len(convs.channels_enc),  # REDUNDANT
         "num_conv_filters_enc": convs.channels_enc,
-        "num_conv_filters_dec_c": convs.channels_dec_c,
-        "num_conv_filters_dec_s": convs.channels_dec_s,
+        "num_conv_filters_dec": convs.channels_dec,
         "cheb_polynomial_order": convs.parameters.polynomial_degree,
-        "latent_dim_content": net.latent_dim_c,
-        "latent_dim_style": net.latent_dim_s,
+        "latent_dim": net.latent_dim,
         "is_variational": config.loss.regularization.weight != 0,
         "mode": "testing",
-        "n_timeframes": config.dataset.parameters.T,
-        "phase_input": net.phase_input,
-        "z_aggr_function": net.z_aggr_function
     }
 
     matrices = get_coma_matrices(config, dm, from_cached=False)
@@ -117,42 +127,10 @@ def get_lightning_module(config, dm):
     # Initialize PyTorch model
     coma_args = get_coma_args(config, dm)
 
-    if config.only_decoder:
+    autoencoder = Autoencoder(**coma_args)
 
-        from models.Model4D import DecoderTemporalSequence, DECODER_C_ARGS, DECODER_S_ARGS
-        from models.lightning.DecoderLightningModule import TemporalDecoderLightning
-
-        dec_c_config = {k: v for k,v in coma_args.items() if k in DECODER_C_ARGS}
-        dec_s_config = {k: v for k,v in coma_args.items() if k in DECODER_S_ARGS}
-
-        decoder = DecoderTemporalSequence(
-            dec_c_config, dec_s_config,
-            phase_embedding_method="exp",
-            n_timeframes=config.dataset.parameters.T
-        )
-
-        model = TemporalDecoderLightning(decoder, config)
-
-    elif config.only_encoder:
-
-        from models.Model4D import EncoderTemporalSequence, ENCODER_ARGS
-        from models.lightning.EncoderLightningModule import TemporalEncoderLightning
-
-        enc_config = {k: v for k, v in coma_args.items() if k in ENCODER_ARGS}
-
-        encoder = EncoderTemporalSequence(
-            enc_config, z_aggr_function=config.network_architecture.z_aggr_function,
-            n_timeframes=config.dataset.parameters.T
-        )
-
-        model = TemporalEncoderLightning(encoder, config)
-
-    else:
-        from models.Model4D import AutoencoderTemporalSequence
-        from models.lightning.ComaLightningModule import CoMA
-        autoencoder = AutoencoderTemporalSequence(**coma_args)
-        # Initialize PyTorch Lightning module
-        model = CoMA(autoencoder, config)
+    # Initialize PyTorch Lightning module
+    model = CoMA(autoencoder, config)
 
     return model
 
