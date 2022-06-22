@@ -1,0 +1,6 @@
+{
+  run_name: null,
+  experiment_name: "Synthetic data",
+  tracking_uri: "https://k3s.multi-x.org:5000",
+  artifact_location: "s3://users-rbonazzola/CardiacMotionRL/mlruns"
+}

@@ -1,0 +1,16 @@
+{
+  data_type: "synthetic",
+  parameters: {    
+    "amplitude_static_max": 0.3,
+    "amplitude_dynamic_max": 0.1,
+    "N": 640,
+    "T": 20,
+    "freq_max": 3,
+    "l_max": 2,
+    "mesh_resolution": 10,
+    "random_seed": 101
+  },
+  preprocessing: {
+    "center_around_mean": false
+  }
+}

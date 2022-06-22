@@ -1,0 +1,6 @@
+{
+  run_name: null,
+  experiment_name: "Synthetic data",
+  tracking_uri: null,
+  artifact_location: null
+}

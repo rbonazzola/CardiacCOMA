@@ -1,0 +1,9 @@
+{
+  data_type: "cardiac",
+  parameters: {    
+    "phases": 1,
+  },
+  preprocessing: {
+    "procrustes_scaling": true
+  }
+}
