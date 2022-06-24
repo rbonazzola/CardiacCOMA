@@ -20,12 +20,20 @@ class Autoencoder3DMesh(nn.Module):
         self.encoder = Encoder3DMesh(**enc_config)
         self.decoder = Decoder3DMesh(**dec_config)
 
+        self.matrices = {}
+        self.matrices["A_edge_index"] = self.encoder.matrices["A_edge_index"] 
+        self.matrices["A_norm"] = self.encoder.matrices["A_norm"] 
+        self.matrices["downsample"] = self.encoder.matrices["downsample"] 
+        self.matrices["upsample"] = self.decoder.matrices["upsample"] 
+
+
     def forward(self, x):
 
-        mu, logvar = self.encoder(x)
+        bottleneck = self.encoder(x)
+        mu, log_var = tuple([bottleneck[k] for k in ["mu", "log_var"]])
         # Add sampling if is_variational == True and it's in training mode
         x_hat = self.decoder(mu)
-        return x_hat
+        return x_hat, mu
 
 ################# ENCODER #################
 
@@ -35,10 +43,9 @@ ENCODER_ARGS = [
     "n_nodes",
     "num_conv_filters_enc",
     "cheb_polynomial_order",
-    "latent_dim_content",
+    "latent_dim",
     "template",
     "is_variational",
-    "phase_input",
     "downsample_matrices",
     "adjacency_matrices",
     "activation_layers"
@@ -50,7 +57,6 @@ class Encoder3DMesh(nn.Module):
     '''
 
     def __init__(self,
-        phase_input: bool,
         num_conv_filters_enc: Sequence[int],
         num_features: int,
         cheb_polynomial_order: int,
@@ -66,16 +72,18 @@ class Encoder3DMesh(nn.Module):
         super(Encoder3DMesh, self).__init__()
 
         self.n_nodes = n_nodes
-        self.phase_input = phase_input
         self.filters_enc = copy(num_conv_filters_enc)
         self.filters_enc.insert(0, num_features)
         self.K = cheb_polynomial_order
 
         self.matrices = {}
         A_edge_index, A_norm = self._build_adj_matrix(adjacency_matrices)
-        self.matrices["A_edge_index"] = list(reversed(A_edge_index))
-        self.matrices["A_norm"] = list(reversed(A_norm))
-        self.matrices["downsample"] = list(reversed(downsample_matrices))
+        self.matrices["A_edge_index"] = A_edge_index
+        self.matrices["A_norm"] = A_norm
+        self.matrices["downsample"] = downsample_matrices
+        #self.matrices["A_edge_index"] = list(reversed(A_edge_index))
+        #self.matrices["A_norm"] = list(reversed(A_norm))
+        #self.matrices["downsample"] = list(reversed(downsample_matrices))
 
         self._n_features_before_z = self.matrices["downsample"][-1].shape[0] * self.filters_enc[-1]
         self._is_variational = is_variational
@@ -137,10 +145,6 @@ class Encoder3DMesh(nn.Module):
     def _build_cheb_conv_layers(self, n_filters, K):
         # Chebyshev convolutions (encoder)
 
-        #TOFIX: this should be specified in the docs.
-        if self.phase_input:
-            n_filters[0] = 2 * n_filters[0]
-
         cheb_enc = torch.nn.ModuleList([ChebConv_Coma(n_filters[0], n_filters[1], K[0])])
         cheb_enc.extend([
             ChebConv_Coma(
@@ -171,20 +175,18 @@ class Encoder3DMesh(nn.Module):
         for i, layer in enumerate(self.layers): 
             
             if self.matrices["downsample"][i].device != x.device:
-                self.matrices["downsample"][i] = self.matrices["upsample"][i].to(x.device)
+                self.matrices["downsample"][i] = self.matrices["downsample"][i].to(x.device)
             if self.matrices["A_edge_index"][i].device != x.device:
                 self.matrices["A_edge_index"][i] = self.matrices["A_edge_index"][i].to(x.device)
             if self.matrices["A_norm"][i].device != x.device:
                 self.matrices["A_norm"][i] = self.matrices["A_norm"][i].to(x.device)
   
             x = self.layers[layer]["graph_conv"](x, self.matrices["A_edge_index"][i], self.matrices["A_norm"][i])
-            try:
-                x = self.layers[layer]["pool"](x, self.matrices["downsample"][i])
-            except:
-                embed()
+            x = self.layers[layer]["pool"](x, self.matrices["downsample"][i])
             x = self.layers[layer]["activation_function"](x)
         
-        x = self.concatenate_graph_features(x)
+        
+        x  = self.concatenate_graph_features(x)
        
         mu = self.enc_lin_mu(x)
         log_var = self.enc_lin_var(x) if self._is_variational else None
@@ -198,7 +200,7 @@ DECODER_ARGS = [
     "n_nodes",
     "num_conv_filters_dec",
     "cheb_polynomial_order",
-    "latent_dim_content",
+    "latent_dim",
     "is_variational",
     "upsample_matrices",
     "adjacency_matrices",
