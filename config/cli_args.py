@@ -89,12 +89,12 @@ cardiac_dataset_args = {
     ("--cardiac_dataset.meshes_file",): {
         "help": "",
         "dest": "config.cardiac_dataset.meshes_file",
-        "type" str,
+        "type": str,
         "action": ArgumentAction},
     ("--cardiac_dataset.procrustes_transforms_file", ): {
         "help": "Pickle binary file containing the rotation and traslation matrix from generalized Procrustes analysis",
         "dest": "config.cardiac_dataset.procrustes_transforms_file",
-        "type" str,
+        "type": str,
         "action": ArgumentAction},
 }
 
@@ -194,7 +194,7 @@ mlflow_args = {
 CLI_args = {
     ("-c", "--conf",): {
         "help": "Path of a YAML configuration file to be used as a reference configuration.",
-        "default": "config_files/config_folded_c_and_s.yaml",
+        "default": "config_files/config.yaml",
         "dest": "yaml_config_file"
     },
     ** network_architecture_args,

@@ -144,13 +144,9 @@ def load_yaml_config(yaml_config_file):
       config.network_architecture.convolution.channels_enc = \
       [int(x) for x in config.network_architecture.convolution.channels_enc.split()]
   
-    if hasattr(config.network_architecture.convolution, "channels_dec_c"):
-      config.network_architecture.convolution.channels_dec_c = \
-      [int(x) for x in config.network_architecture.convolution.channels_dec_c.split()]
-
-    if hasattr(config.network_architecture.convolution, "channels_dec_s"):
-      config.network_architecture.convolution.channels_dec_s = \
-      [int(x) for x in config.network_architecture.convolution.channels_dec_s.split()]
+    if hasattr(config.network_architecture.convolution, "channels_dec"):
+      config.network_architecture.convolution.channels_dec = \
+      [int(x) for x in config.network_architecture.convolution.channels_dec.split()]
 
     if hasattr(config.network_architecture, "activation_function"):
       config.network_architecture.activation_function = \

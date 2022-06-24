@@ -1,6 +1,7 @@
 {
   data_type: "cardiac",
-  filename: "data/cardio/LV_meshes_at_ED_35k.pkl"
+  filename: "data/cardio/LV_meshes_at_ED_35k.pkl",
+  template: "data/cardio/faces.pkl",
   preprocessing: {
     "procrustes": "data/cardio/procrustes_transforms_35k.pkl"
   }

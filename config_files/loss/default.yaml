@@ -1,11 +1,8 @@
 {
-  reconstruction_c: {
+  reconstruction: {
     type: "MSE",
     weight: 1
   },
-  reconstruction_s: {
-    type: "MSE",
-    weight: 0.1  },
   regularization: {
     type: "KL",
     weight: 1
