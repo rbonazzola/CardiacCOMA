@@ -5,18 +5,13 @@ def get_mlflow_parameters(config):
     net = config.network_architecture
     loss_params = {
         "w_kl": loss.regularization.weight,
-        "w_s": loss.reconstruction_s.weight
     }
     net_params = {
-        "latent_dim_s": net.latent_dim_s,
-        "latent_dim_c": net.latent_dim_c,
-        "z_aggr_function": net.z_aggr_function,
+        "latent_dim": net.latent_dim,
         "convolution_type": net.convolution.type,
         "n_channels_enc": net.convolution.channels_enc,
-        "n_channels_dec_c": net.convolution.channels_dec_c,
-        "n_channels_dec_s": net.convolution.channels_dec_s,
+        "n_channels_dec": net.convolution.channels_dec,
         "reduction_factors": net.pooling.parameters.downsampling_factors,
-        "phase_input": net.phase_input
     }
 
     mlflow_parameters = {
@@ -35,21 +30,28 @@ def get_mlflow_dataset_params(config):
     '''
     d = config.dataset
 
+
     mlflow_dataset_params = {
-        "dataset_type": "synthetic",
-        "dataset_max_static_amplitude": d.parameters.amplitude_static_max,
-        "dataset_max_dynamic_amplitude": d.parameters.amplitude_dynamic_max,
-        "dataset_n_timeframes": d.parameters.T,
-        "dataset_freq_max": d.parameters.freq_max,
-        "dataset_l_max": d.parameters.l_max,
-        "dataset_resolution": d.parameters.mesh_resolution,
-        "dataset_complexity_c": (d.parameters.l_max + 1) ** 2,
-        "dataset_complexity_s": ((d.parameters.l_max + 1) ** 2) * d.parameters.freq_max,
-        "dataset_complexity": ((d.parameters.l_max + 1) ** 2) * (d.parameters.freq_max + 1),
-        "dataset_random_seed": d.parameters.random_seed,
-        "dataset_template": "icosphere",  # TODO: add this as parameter in the configuration
-        "dataset_center_around_mean": d.preprocessing.center_around_mean
+        "dataset_type": d.data_type,
     }
+
+    if mlflow_dataset_params["dataset_type"] == "synthetic":
+        mlflow_dataset_params.update({
+          "dataset_type": "synthetic",
+          "dataset_max_static_amplitude": d.parameters.amplitude_static_max,
+          "dataset_max_dynamic_amplitude": d.parameters.amplitude_dynamic_max,
+          "dataset_n_timeframes": d.parameters.T,
+          "dataset_freq_max": d.parameters.freq_max,
+          "dataset_l_max": d.parameters.l_max,
+          "dataset_resolution": d.parameters.mesh_resolution,
+          "dataset_complexity_c": (d.parameters.l_max + 1) ** 2,
+          "dataset_complexity_s": ((d.parameters.l_max + 1) ** 2) * d.parameters.freq_max,
+          "dataset_complexity": ((d.parameters.l_max + 1) ** 2) * (d.parameters.freq_max + 1),
+          "dataset_random_seed": d.parameters.random_seed,
+          "dataset_template": "icosphere",  # TODO: add this as parameter in the configuration
+          "dataset_center_around_mean": d.preprocessing.center_around_mean
+        })
+    # elif mlflow_dataset_params["dataset_type"] == "cardiac":
 
     return mlflow_dataset_params
 
