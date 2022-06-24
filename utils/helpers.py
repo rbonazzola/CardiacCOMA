@@ -1,15 +1,23 @@
 import torch
+import numpy as np
+
+import scipy
+import scipy.sparse
+scipy.sparse._csc = scipy.sparse.csc
+
 import os
 import sys; sys.path.append("..")
 
+from IPython import embed
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
-from models.Model3D import Autoencoder3DMesh as Autoencoder
-from models.lightning.ComaLightningModule import CoMA
+from  model import Model3D
+from model.Model3D import Autoencoder3DMesh as Autoencoder
+from model.lightning.AutoencoderLightningModule import AutoencoderLightning 
 
 from pytorch_lightning.callbacks import RichModelSummary
-from data.DataModules import DataModule as DataModule
+from data.DataModules import DataModule as DataModule, CardiacMeshPopulationDataset
 # from data.SyntheticDataModules import SyntheticMeshesDM
 from utils import mesh_operations
 from utils.mesh_operations import Mesh
@@ -39,17 +47,17 @@ def get_datamodule(config, perform_setup=True):
     if config.dataset.data_type.startswith("cardiac"):
         dataset_cls = CardiacMeshPopulationDataset
         dataset_args = {
-            meshes = 
+            "meshes": pkl.load(open(config.dataset.filename, "rb")),
+            "procrustes_transforms": config.dataset.preprocessing.procrustes
         }
     
     elif config.dataset.data_type.startswith("synthetic"):
         dataset_cls = SyntheticMeshPopulationDataset
-        dataset_args =
+        dataset_args = None
 
     dm = DataModule(
-       dataset_cls,
-       dataset_args,
-       split_lengths=self.split_lengths,
+       dataset_cls, dataset_args,
+       split_lengths=config.sample_sizes,
        batch_size=config.batch_size
     )
 
@@ -71,17 +79,21 @@ def get_coma_matrices(config, dm, cache=True, from_cached=True):
     where the first three elements are lists of matrices and the last is a list of integers.
     '''
 
-    mesh_popu = dm.train_dataset.dataset.mesh_popu
+    mesh_popu = dm.train_dataset.dataset.meshes
 
     matrices_hash = hash(
-        (mesh_popu._object_hash, tuple(config.network_architecture.pooling.parameters.downsampling_factors))) % 1000000
+        (tuple(config.network_architecture.pooling.parameters.downsampling_factors))) % 1000000
 
-    cached_file = f"data/cached/matrices/{matrices_hash}.pkl"
+    template_point_cloud = mesh_popu.mean(axis=0)
+    template_faces = np.array(pkl.load(open(config.dataset.template, "rb")))
+
+
+    cached_file = f"data/cached/matrices/cardio_{matrices_hash}.pkl"
 
     if from_cached and os.path.exists(cached_file):
         A_t, D_t, U_t, n_nodes = pkl.load(open(cached_file, "rb"))
     else:
-        template_mesh = Mesh(mesh_popu.template.vertices, mesh_popu.template.faces)
+        template_mesh = Mesh(template_point_cloud, template_faces)
         M, A, D, U = mesh_operations.generate_transform_matrices(
             template_mesh, config.network_architecture.pooling.parameters.downsampling_factors,
         )
@@ -127,10 +139,13 @@ def get_lightning_module(config, dm):
     # Initialize PyTorch model
     coma_args = get_coma_args(config, dm)
 
-    autoencoder = Autoencoder(**coma_args)
+    dec_config = {k: v for k,v in coma_args.items() if k in Model3D.DECODER_ARGS}
+    enc_config = {k: v for k,v in coma_args.items() if k in Model3D.ENCODER_ARGS}
+
+    autoencoder = Autoencoder(enc_config, dec_config)
 
     # Initialize PyTorch Lightning module
-    model = CoMA(autoencoder, config)
+    model = AutoencoderLightning(autoencoder, config)
 
     return model
 
