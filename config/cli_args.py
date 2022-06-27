@@ -42,12 +42,12 @@ network_architecture_args = {
         "help": "Number of channels (feature maps) in the style decoder, from the most hidden layer to the output.",
         "nargs": "+", "type": int,
         "action": ArgumentAction,
-        "dest": "config.network_architecture.convolution.channels_dec_s"},
+        "dest": "config.network_architecture.convolution.channels_dec"},
     ("--latent_dim",): {
         "help": "Dimension of the latent space",
         "type": int,
         "action": ArgumentAction,
-        "dest": "config.network_architecture.latent_dim_c"},
+        "dest": "config.network_architecture.latent_dim"},
     ("--activation_function",): {
         "help": "Activation functions to be used",
         "nargs": "+", "type": str,

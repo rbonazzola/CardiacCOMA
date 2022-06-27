@@ -60,7 +60,7 @@ def main(config, trainer_args):
 
     trainer.fit(model, datamodule=dm)
     trainer.test(datamodule=dm) # Generates metrics for the full test dataset
-    trainer.predict(ckpt_path='best', datamodule=dm) # Generates figures for a few samples
+    # trainer.predict(ckpt_path='best', datamodule=dm) # Generates figures for a few samples
 
     mlflow.end_run()
     # print_auto_logged_info(mlflow.get_run(run_id=run.info.run_id))
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     try:
         config_to_replace = args.config
         config = overwrite_config_items(ref_config, config_to_replace)
-    except AttributeError:
+    except:
         # If there are no elements to replace
         pass
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
         trainer_args.logger = MLFlowLogger(
             tracking_uri=config.mlflow.tracking_uri,
-            **exp_info,
+            **exp_info
         )
 
         mlflow.set_tracking_uri(config.mlflow.tracking_uri)
