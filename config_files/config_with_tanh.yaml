@@ -1,0 +1,11 @@
+seed: null
+batch_size: 32
+dataset: "dataset/default_cardiac.yaml"
+# sample_sizes: { training: 1000, validation: 200, testing: 200 }
+sample_sizes: [ 5000, 200, 200 ]
+network_architecture: "network_architecture/default_with_tanh.yaml"
+loss: "loss/default.yaml"
+optimizer: "optimizer/default_adam.yaml"
+mlflow: "mlflow/default_local.yaml"
+only_decoder: null
+only_encoder: null
