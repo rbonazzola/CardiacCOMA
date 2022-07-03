@@ -25,6 +25,7 @@ for LATENT_DIM in ${LATENT_DIMS[@]}; do
     --batch_size 256 \
     --learning_rate 1e-${LR} \
     --gpus ${GPU_DEVICE:-0} \
+    --min_epochs 20 \
     $@
 done
 done
