@@ -37,7 +37,6 @@ def get_mlflow_dataset_params(config):
 
     if mlflow_dataset_params["dataset_type"] == "synthetic":
         mlflow_dataset_params.update({
-          "dataset_type": "synthetic",
           "dataset_max_static_amplitude": d.parameters.amplitude_static_max,
           "dataset_max_dynamic_amplitude": d.parameters.amplitude_dynamic_max,
           "dataset_n_timeframes": d.parameters.T,
@@ -51,7 +50,13 @@ def get_mlflow_dataset_params(config):
           "dataset_template": "icosphere",  # TODO: add this as parameter in the configuration
           "dataset_center_around_mean": d.preprocessing.center_around_mean
         })
-    # elif mlflow_dataset_params["dataset_type"] == "cardiac":
+
+    mlflow_dataset_params.update({
+        "n_training": config.sample_sizes[0],
+        "n_validation": config.sample_sizes[1],
+        "n_test": config.sample_sizes[2],
+        "dataset_center_around_mean": False
+    })
 
     return mlflow_dataset_params
 
