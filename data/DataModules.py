@@ -169,4 +169,6 @@ class DataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size[2], num_workers=8)    
-    
+      
+    def predict_dataloader(self):
+        return DataLoader(self.dataset, batch_size=self.batch_size[0], num_workers=8)    
