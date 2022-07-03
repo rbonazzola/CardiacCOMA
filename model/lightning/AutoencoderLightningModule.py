@@ -43,9 +43,13 @@ class AutoencoderLightning(pl.LightningModule):
 
     def _get_rec_loss(self):
 
-        # self.w_kl = self.params.loss.regularization.weight
+        self.w_kl = self.params.loss.regularization.weight
         loss_type = self.params.loss.reconstruction.type.lower()
         return losses_menu[loss_type]
+
+
+    def KL_div(self, mu, log_var):
+        return -0.5 * torch.mean(torch.mean(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
 
 
     def forward(self, input: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -67,14 +71,23 @@ class AutoencoderLightning(pl.LightningModule):
     def _shared_step(self, batch, batch_idx):
 
         s = self._unpack_data_from_batch(batch)
-        # z = {"mu": z, "log_var": None}
 
         s_hat, z = self(s)
+        # bottleneck, time_avg_shat, shat_t = self(s_t)
+
+        if self.model._is_variational:
+            self.mu, self.log_var = bottleneck
+            kld_loss = self.KL_div(self.mu, self.log_var)
+        else:
+            loss = recon_loss
+            kld_loss = torch.zeros_like(loss)
 
         recon_loss = self.rec_loss(s, s_hat)
+        train_loss = recon_loss + self.w_kl * kld_loss
 
         loss_dict = {
             "recon_loss": recon_loss,
+            "kld_loss": kld_loss,
             "loss": recon_loss
         }
 
@@ -113,9 +126,10 @@ class AutoencoderLightning(pl.LightningModule):
              for i, _ in enumerate(self.model.matrices["upsample"]):
                 self.model.matrices[matrix_type][i] = self.model.matrices[matrix_type][i].to(self.device)
 
+
     def on_train_epoch_start(self):
-        pass
-        #self.model.set_mode("training")
+        self.model.set_mode("training")
+
 
 
     def training_step(self, batch, batch_idx):
@@ -135,8 +149,7 @@ class AutoencoderLightning(pl.LightningModule):
 
     ########### VALIDATION
     def on_validation_start(self):
-        pass
-        #self.model.set_mode("testing")
+        self.model.set_mode("inference")
 
 
     def validation_step(self, batch, batch_idx):
@@ -150,8 +163,7 @@ class AutoencoderLightning(pl.LightningModule):
 
     ########### TESTING
     def on_test_start(self):
-        pass
-        #self.model.set_mode("testing")
+        self.model.set_mode("inference")
 
 
     def test_step(self, batch, batch_idx):

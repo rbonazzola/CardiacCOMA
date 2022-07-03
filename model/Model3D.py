@@ -30,9 +30,15 @@ class Autoencoder3DMesh(nn.Module):
     def forward(self, x):
 
         bottleneck = self.encoder(x)
+
         mu, log_var = tuple([bottleneck[k] for k in ["mu", "log_var"]])
-        # Add sampling if is_variational == True and it's in training mode
-        x_hat = self.decoder(mu)
+
+        if self._is_variational and self.mode == "training" :
+            z = self.sampling(self.mu, self.log_var)
+        else:
+            z = self.mu
+
+        x_hat = self.decoder(z)
         return x_hat, mu
 
 ################# ENCODER #################
@@ -190,6 +196,7 @@ class Encoder3DMesh(nn.Module):
        
         mu = self.enc_lin_mu(x)
         log_var = self.enc_lin_var(x) if self._is_variational else None
+
         return {"mu": mu, "log_var": log_var}
 
 ################# DECODER #################
@@ -297,6 +304,7 @@ class Decoder3DMesh(nn.Module):
 
 
     def _build_cheb_conv_layers(self, n_filters, K):
+
         # Chebyshev convolutions (decoder)
         cheb_dec = torch.nn.ModuleList([ChebConv_Coma(n_filters[0], n_filters[1], K[0])])
         for i in range(1, len(n_filters)-1):
