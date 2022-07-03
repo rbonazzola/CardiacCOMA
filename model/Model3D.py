@@ -34,12 +34,13 @@ class Autoencoder3DMesh(nn.Module):
         mu, log_var = tuple([bottleneck[k] for k in ["mu", "log_var"]])
 
         if self._is_variational and self.mode == "training" :
-            z = self.sampling(self.mu, self.log_var)
+            z = self.sampling(mu, log_var)
         else:
-            z = self.mu
+            z = mu
 
         x_hat = self.decoder(z)
-        return x_hat, mu
+        return x_hat, bottleneck
+
 
 ################# ENCODER #################
 

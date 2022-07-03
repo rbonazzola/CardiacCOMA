@@ -72,23 +72,22 @@ class AutoencoderLightning(pl.LightningModule):
 
         s = self._unpack_data_from_batch(batch)
 
-        s_hat, z = self(s)
+        s_hat, bottleneck = self(s)
         # bottleneck, time_avg_shat, shat_t = self(s_t)
 
         if self.model._is_variational:
-            self.mu, self.log_var = bottleneck
-            kld_loss = self.KL_div(self.mu, self.log_var)
+            mu, log_var = tuple([bottleneck[k] for k in ["mu", "log_var"]])
+            kld_loss = self.KL_div(mu, log_var)
         else:
-            loss = recon_loss
             kld_loss = torch.zeros_like(loss)
 
         recon_loss = self.rec_loss(s, s_hat)
-        train_loss = recon_loss + self.w_kl * kld_loss
+        loss = recon_loss + self.w_kl * kld_loss
 
         loss_dict = {
             "recon_loss": recon_loss,
             "kld_loss": kld_loss,
-            "loss": recon_loss
+            "loss": loss
         }
 
         # https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#log-dict
