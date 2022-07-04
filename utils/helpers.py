@@ -141,8 +141,12 @@ def get_lightning_module(config, dm):
 
     dec_config = {k: v for k,v in coma_args.items() if k in Model3D.DECODER_ARGS}
     enc_config = {k: v for k,v in coma_args.items() if k in Model3D.ENCODER_ARGS}
+    other_args = {
+      "is_variational": config.loss.regularization.weight != 0,
+      "template_mesh": coma_args["template"]
+    }
 
-    autoencoder = Autoencoder(enc_config, dec_config)
+    autoencoder = Autoencoder(enc_config, dec_config, other_args)
 
     # Initialize PyTorch Lightning module
     model = AutoencoderLightning(autoencoder, config)
@@ -155,7 +159,7 @@ def get_lightning_trainer(trainer_args):
     # trainer
     trainer_kwargs = {
         "callbacks": [
-            EarlyStopping(monitor="val_loss", mode="min", patience=3),
+            EarlyStopping(monitor="val_loss", mode="min", patience=10),
             RichModelSummary(max_depth=-1)
         ],
         "gpus": [trainer_args.gpus],
