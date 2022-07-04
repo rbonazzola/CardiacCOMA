@@ -129,8 +129,6 @@ class AutoencoderLightning(pl.LightningModule):
     def on_train_epoch_start(self):
         self.model.set_mode("training")
 
-
-
     def training_step(self, batch, batch_idx):
         return self._shared_step(batch, batch_idx)
 
@@ -175,6 +173,10 @@ class AutoencoderLightning(pl.LightningModule):
 
 
     ########### PREDICTING
+    def on_predict_start(self):
+        self.model.set_mode("inference")
+
+
     def predict_step(self, batch, batch_idx):
 
         s = self._unpack_data_from_batch(batch)
@@ -204,4 +206,26 @@ class AutoencoderLightning(pl.LightningModule):
             run_id=self.logger.run_id
         )
 
-        return 0  # to prevent warning messages
+        return {"z": z}
+
+    def predict_epoch_end(self, outputs):
+
+        z = torch.stack([x["z"] for x in outputs])
+
+
+
+
+
+
+def merge_pngs_horizontally(png1, png2, output_png):
+    # https://www.tutorialspoint.com/python_pillow/Python_pillow_merging_images.htm
+    # Read the two images
+    image1 = Image.open(png1)
+    image2 = Image.open(png2)
+    # resize, first image
+    image1_size = image1.size
+    # image2_size = image2.size
+    new_image = Image.new('RGB', (2 * image1_size[0], image1_size[1]), (250, 250, 250))
+    new_image.paste(image1, (0, 0))
+    new_image.paste(image2, (image1_size[0], 0))
+    new_image.save(output_png, "PNG")

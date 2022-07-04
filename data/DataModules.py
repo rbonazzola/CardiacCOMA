@@ -53,10 +53,16 @@ class CardiacMeshPopulationDataset(TensorDataset):
     def __getitem__(self, id):
    
        if isinstance(id, int):
-           return { "s": self._data_dict[self.ids[id]] }
+           return {
+               "id": self.ids[id],
+               "s": self._data_dict[self.ids[id]]
+           }
        elif isinstance(id, str):
            try:
-                return { "s": self._data_dict[id] }
+                return {
+                    "id": id,
+                    "s": self._data_dict[id]
+                }
            except:
                 return None
        
@@ -130,6 +136,12 @@ class DataModule(pl.LightningDataModule):
 
         
     def _get_lengths(self, split_lengths):
+
+        '''
+        :param split_lengths: if len(split_lengths) == 2, the third one is taken as the complement to the total.
+        if the contents are float numbers smaller than 1, are interpreted as fractions of the total
+        :return:
+        '''
                 
         if split_lengths is None:            
             train_len = int(0.6 * len(self.dataset))
@@ -148,7 +160,7 @@ class DataModule(pl.LightningDataModule):
             else:
                 raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
                 
-        elif all([l >= 1 for l in split_lengths]):            
+        elif all([l < 1 for l in split_lengths]):
             
             train_len = int(split_lengths[0] * len(self.dataset))
             test_len = int(split_lengths[1] * len(self.dataset))
@@ -168,5 +180,8 @@ class DataModule(pl.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=self.batch_size[1], num_workers=8)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size[2], num_workers=8)    
+        return DataLoader(self.test_dataset, batch_size=self.batch_size[2], num_workers=8)
+
+    def predict_dataloader(self):
+        return DataLoader(self.dataset, batch_size=self.batch_size[0], num_workers=8)
     
