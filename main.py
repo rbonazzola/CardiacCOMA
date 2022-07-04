@@ -27,7 +27,7 @@ def main(config, trainer_args):
 
     if config.mlflow:
 
-        mlflow.pytorch.autolog()
+        mlflow.pytorch.autolog(log_models=False)
 
         try:
             exp_id = mlflow.create_experiment(config.mlflow.experiment_name, artifact_location=config.mlflow.artifact_location)
@@ -60,7 +60,7 @@ def main(config, trainer_args):
 
     trainer.fit(model, datamodule=dm)
     trainer.test(datamodule=dm) # Generates metrics for the full test dataset
-    # trainer.predict(ckpt_path='best', datamodule=dm) # Generates figures for a few samples
+    trainer.predict(ckpt_path='best', datamodule=dm) # Generates figures for a few samples
 
     mlflow.end_run()
     # print_auto_logged_info(mlflow.get_run(run_id=run.info.run_id))
