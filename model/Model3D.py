@@ -13,12 +13,14 @@ from IPython import embed # left there for debugging if needed
 
 class Autoencoder3DMesh(nn.Module):
 
-    def __init__(self, enc_config, dec_config):
+    def __init__(self, enc_config, dec_config, other_args):
 
         super(Autoencoder3DMesh, self).__init__()
 
         self.encoder = Encoder3DMesh(**enc_config)
         self.decoder = Decoder3DMesh(**dec_config)
+        self._is_variational = other_args["is_variational"]
+        self.template_mesh = other_args["template_mesh"]
 
         self.matrices = {}
         self.matrices["A_edge_index"] = self.encoder.matrices["A_edge_index"] 
@@ -41,6 +43,8 @@ class Autoencoder3DMesh(nn.Module):
         x_hat = self.decoder(z)
         return x_hat, bottleneck
 
+    def set_mode(self, mode):
+        self.mode = mode
 
 ################# ENCODER #################
 
