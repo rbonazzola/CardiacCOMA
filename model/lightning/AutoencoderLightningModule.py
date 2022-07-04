@@ -1,3 +1,5 @@
+import pandas as pd
+import pyvista as pv
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -60,28 +62,30 @@ class AutoencoderLightning(pl.LightningModule):
     def _unpack_data_from_batch(self, batch):
        
         #TODO: fix this 
-        s = tuple([batch.get(k, None) for k in ["s"]])
+        id, s = tuple([batch.get(k, None) for k in ["id", "s"]])
         # z = torch.stack(z).transpose(0, 1).type_as(s_t)  # to get N_batches x latent_dim
-        if len(s) == 1:
-          return s[0]
-        else:
-          return s
+        return id, s
+        #if len(s) == 1:
+        #  return s[0]
+        #else:
+        #  return id, s
 
 
     def _shared_step(self, batch, batch_idx):
 
-        s = self._unpack_data_from_batch(batch)
+        id, s = self._unpack_data_from_batch(batch)
 
         s_hat, bottleneck = self(s)
         # bottleneck, time_avg_shat, shat_t = self(s_t)
+
+        recon_loss = self.rec_loss(s, s_hat)
 
         if self.model._is_variational:
             mu, log_var = tuple([bottleneck[k] for k in ["mu", "log_var"]])
             kld_loss = self.KL_div(mu, log_var)
         else:
-            kld_loss = torch.zeros_like(loss)
+            kld_loss = torch.zeros_like(recon_loss)
 
-        recon_loss = self.rec_loss(s, s_hat)
         loss = recon_loss + self.w_kl * kld_loss
 
         loss_dict = {
@@ -179,42 +183,91 @@ class AutoencoderLightning(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
 
-        s = self._unpack_data_from_batch(batch)
+        id, s = self._unpack_data_from_batch(batch)
         faces = self.model.template_mesh.f
         center_flag = self.params.dataset.preprocessing.center_around_mean
         s_hat, z = self(s)
 
+        z = z['mu']
         _s = s[0].cpu()
         _s_hat = s_hat[0].cpu() 
 
-        if center:
-            _s += self.model.template_mesh.v
-            _s_hat += self.model.template_mesh.v
+        #if center_flag:
+        #    _s += self.model.template_mesh.v
+        #    _s_hat += self.model.template_mesh.v
         
-        png_prefix = f"mesh_{batch_idx}"
+        #png_prefix = f"mesh_{batch_idx}"
 
-        orig_png, rec_png, full_png = ( f"{png_prefix}{suffix}.png" for suffix in ["_orig", "_rec", ""] )
+        #orig_png, rec_png, full_png = ( f"{png_prefix}{suffix}.png" for suffix in ["_orig", "_rec", ""] )
 
-        render_mesh_as_png(_s, faces, orig_png)
-        render_mesh_as_png(_s_hat, faces, rec_png)
+        #render_mesh_as_png(_s, faces, orig_png)
+        #render_mesh_as_png(_s_hat, faces, rec_png)
 
-        merge_pngs_horizontally( orig_png, rec_png, full_png ) 
+        #merge_pngs_horizontally( orig_png, rec_png, full_png ) 
 
+        #self.logger.experiment.log_artifact(
+        #    local_path=full_png,
+        #    artifact_path="images", 
+        #    run_id=self.logger.run_id
+        #)
+
+        return {"id": id, "z": z}
+
+    def on_predict_epoch_end(self, outputs):
+
+        self._log_z_vectors(outputs, "latent_vector.csv")
+
+        #perf_file = "{}/performance.csv".format(output_dir)
+        #perf_df = pd.DataFrame(None, columns=["mse"])
+
+    def _log_z_vectors(self, outputs, filename):
+        
+        embed()
+        z = torch.concat([x["z"] for x in outputs[0]], axis=0)
+        ids = [x["id"] for x in outputs[0]]
+        z_columns = [f"z{i:03d}" for i in range(z.shape[1])] # z001, z002, z003, ...
+        z_df = pd.DataFrame(np.array(z), columns=z_columns)
+
+        ids = [id for sublist in ids for id in sublist]
+        ids = pd.DataFrame(ids, columns=["id"])
+        
+        z_df = pd.concat([ids, z_df], axis=1)
+        z_df.to_csv(filename, index=False)       
+ 
         self.logger.experiment.log_artifact(
-            local_path=full_png,
-            artifact_path="images", 
-            run_id=self.logger.run_id
+            local_path = filename,
+            artifact_path = "output", run_id=self.logger.run_id
         )
 
-        return {"z": z}
 
-    def predict_epoch_end(self, outputs):
+def render_mesh_as_png(mesh3D, faces, filename, camera_position='xy', show_edges=False, **kwargs):
 
-        z = torch.stack([x["z"] for x in outputs])
+	'''  
+	Produces a png file representing a static 3D mesh.
+	- params
+	::mesh3D:: a sequence of Trimesh mesh objects. 
+	::faces:: array of F x 3 containing the indices of the mesh's triangular faces.
+	::filename:: the name of the output png file. 
+	::camera_position:: camera position for pyvista plotter (check relevant docs)
 
+	- return:  
+	None, only produces the png file. 
+	'''
 
+	pv.set_plot_theme("document")
+	plotter = pv.Plotter(off_screen=True, notebook=False)
+	connectivity = np.c_[np.ones(faces.shape[0]) * 3, faces].astype(int)
 
+	try:
+	    # if mesh3D is torch.Tensor, this your should run OK
+	    mesh3D = mesh3D.cpu().numpy()
+	except:
+	    pass
 
+	mesh = pv.PolyData(mesh3D, connectivity)
+	actor = plotter.add_mesh(mesh, show_edges=show_edges)
+	plotter.camera_position = camera_position
+	plotter.screenshot(filename if filename.endswith("png") else filename + ".png")
 
 
 def merge_pngs_horizontally(png1, png2, output_png):
