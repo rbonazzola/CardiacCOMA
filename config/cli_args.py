@@ -149,8 +149,9 @@ training_args = {
         "type": int,
         "action": ArgumentAction},
     ("--partition_lengths", "--partition-lengths"): {
-        "nargs":"+", "help": "List of two [or three] integers (floats) representing the number of samples (fraction of samples) to be used for training, test [and validation].",
+        "nargs":"+", "help": "List of 4 integers representing the number of samples (fraction of samples) to be used for training, test, validation and prediction. If the last one if -1, the full dataset is taken.",
         "dest": "config.sample_sizes",
+        "type": int,
         "action": ArgumentAction},
 }
 

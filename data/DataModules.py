@@ -120,18 +120,26 @@ class DataModule(pl.LightningDataModule):
     def setup(self, stage: Optional[str] = None):
 
         self.dataset = self._torch_dataset_cls(**self.dataset_args)
-        
         indices = list(range(sum(self.split_lengths)))
         random.shuffle(indices)
         
         train_indices = indices[:self.split_lengths[0]]
         val_indices = indices[self.split_lengths[0]: self.split_lengths[0]+self.split_lengths[1]]
         test_indices = indices[self.split_lengths[0]+self.split_lengths[1]:]
-        
+        predict_len = self.split_lengths[-1]       
+ 
+        full_index_set = list(range(len(self.dataset)))
+        random.shuffle(full_index_set)
+
+        if predict_len > 0:
+            predict_indices = full_index_set[:predict_len]
+        else:
+            predict_indices = full_index_set
+
         self.train_dataset = torch.utils.data.Subset(self.dataset, train_indices)
         self.val_dataset = torch.utils.data.Subset(self.dataset, val_indices)
         self.test_dataset = torch.utils.data.Subset(self.dataset, test_indices)
-                        
+        self.predict_dataset = torch.utils.data.Subset(self.dataset, predict_indices)
         # self.train_dataset, self.val_dataset, self.test_dataset = random_split(self.dataset, self.split_lengths)        
 
         
@@ -143,6 +151,8 @@ class DataModule(pl.LightningDataModule):
         :return:
         '''
                 
+        predict_len = split_lengths.pop(-1)
+
         if split_lengths is None:            
             train_len = int(0.6 * len(self.dataset))
             test_len = int(0.2 * len(self.dataset))
@@ -152,13 +162,9 @@ class DataModule(pl.LightningDataModule):
             
             train_len = split_lengths[0]
             test_len = split_lengths[1]
-            
-            if len(split_lengths) == 2:
-                val_len = len(self.dataset) - train_len - test_len
-            elif len(split_lengths) == 3:            
-                val_len = split_lengths[2]
-            else:
-                raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
+            val_len = split_lengths[2]
+               
+            #raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
                 
         elif all([l < 1 for l in split_lengths]):
             
@@ -171,7 +177,7 @@ class DataModule(pl.LightningDataModule):
             else:
                 raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
                 
-        return train_len, val_len, test_len
+        return [train_len, val_len, test_len, predict_len]
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size[0], num_workers=8)
@@ -183,5 +189,5 @@ class DataModule(pl.LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size[2], num_workers=8)
 
     def predict_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size[0], num_workers=8)
+        return DataLoader(self.predict_dataset, batch_size=self.batch_size[0], num_workers=8)
     
