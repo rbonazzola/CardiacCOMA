@@ -96,12 +96,13 @@ class AutoencoderLightning(pl.LightningModule):
 
         # https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#log-dict
         self.log_dict(loss_dict)
+        loss_dict["id"] = id
         return loss_dict
 
 
-    def _average_over_batches(self, outputs: List[Mapping[str, torch.Tensor]], prefix: str = ""):
+    def _average_losses_over_batches(self, outputs: List[Mapping[str, torch.Tensor]], prefix: str = ""):
 
-        keys = outputs[0].keys()
+        keys = [x for x in outputs[0].keys() if x.endswith("loss")]
         loss_dict = {}
         for k in keys:
             avg_loss = torch.stack([x[k] for x in outputs]).mean().detach()
@@ -140,7 +141,8 @@ class AutoencoderLightning(pl.LightningModule):
     def training_epoch_end(self, outputs):
 
         # Aggregate metrics from each batch
-        loss_dict = self._average_over_batches(outputs, prefix="training_")
+        loss_dict = self._average_losses_over_batches(outputs, prefix="training_")
+        self._collect_ids(outputs, "training_ids.txt")
         self.log_dict(loss_dict, on_epoch=True, prog_bar=True, logger=True)
 
 
@@ -158,7 +160,8 @@ class AutoencoderLightning(pl.LightningModule):
 
 
     def validation_epoch_end(self, outputs):
-        loss_dict = self._average_over_batches(outputs, prefix="val_")
+        loss_dict = self._average_losses_over_batches(outputs, prefix="val_")
+        self._collect_ids(outputs, "validation_ids.txt")
         self.log_dict(loss_dict, on_epoch=True, prog_bar=True, logger=True)
 
 
@@ -172,7 +175,8 @@ class AutoencoderLightning(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs):
-        loss_dict = self._average_over_batches(outputs, prefix="test_")
+        loss_dict = self._average_losses_over_batches(outputs, prefix="test_")
+        self._collect_ids(outputs, "test_ids.txt")
         self.log_dict(loss_dict, on_epoch=True, prog_bar=True, logger=True)
 
 
@@ -220,17 +224,25 @@ class AutoencoderLightning(pl.LightningModule):
         #perf_file = "{}/performance.csv".format(output_dir)
         #perf_df = pd.DataFrame(None, columns=["mse"])
 
-    def _log_z_vectors(self, outputs, filename):
-        
-        embed()
-        z = torch.concat([x["z"] for x in outputs[0]], axis=0)
-        ids = [x["id"] for x in outputs[0]]
-        z_columns = [f"z{i:03d}" for i in range(z.shape[1])] # z001, z002, z003, ...
-        z_df = pd.DataFrame(np.array(z), columns=z_columns)
-
+    def _collect_ids(self, outputs, filename=None):
+        ids = [x["id"] for x in outputs]
         ids = [id for sublist in ids for id in sublist]
         ids = pd.DataFrame(ids, columns=["id"])
+        if filename is not None:
+            ids.to_csv(filename, index=False)
+            self.logger.experiment.log_artifact(
+                local_path = filename,
+                artifact_path = "output", run_id=self.logger.run_id
+            )
+        return ids
+
+    def _log_z_vectors(self, outputs, filename):
         
+        z = torch.concat([x["z"] for x in outputs[0]], axis=0)
+        z_columns = [f"z{i:03d}" for i in range(z.shape[1])] # z001, z002, z003, ...
+        z_df = pd.DataFrame(np.array(z), columns=z_columns)
+        
+        ids = self._collect_ids(outputs[0])
         z_df = pd.concat([ids, z_df], axis=1)
         z_df.to_csv(filename, index=False)       
  
