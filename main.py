@@ -1,4 +1,5 @@
 import pytorch_lightning as pl
+import yaml
 from pytorch_lightning.loggers import MLFlowLogger
 
 import mlflow
@@ -44,7 +45,10 @@ def main(config, trainer_args):
         }
 
         mlflow.start_run(**run_info)
-            
+    
+        yaml.dump(to_dict(config), open("config.yaml", "w"), default_flow_style=False)
+        mlflow.log_artifact("config.yaml")
+        
         if config.log_computational_graph:
             from torchviz import make_dot
             yhat = model(next(iter(dm.train_dataloader()))[0])
