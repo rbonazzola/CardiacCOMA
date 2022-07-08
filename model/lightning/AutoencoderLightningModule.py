@@ -20,6 +20,9 @@ losses_menu = {
   "mse": F.mse_loss
 }
 
+N_IMAGES_LOGGED = 10
+CAMERA_VIEWS = ['xz', 'xy', 'yz']
+
 def mse(s1, s2=None):
     if s2 is None:
         s2 = torch.zeros_like(s1)
@@ -196,24 +199,30 @@ class AutoencoderLightning(pl.LightningModule):
         _s = s[0].cpu()
         _s_hat = s_hat[0].cpu() 
 
-        #if center_flag:
-        #    _s += self.model.template_mesh.v
-        #    _s_hat += self.model.template_mesh.v
+        if batch_idx < N_IMAGES_LOGGED:
+
+            if center_flag:
+                _s += self.model.template_mesh.v
+                _s_hat += self.model.template_mesh.v
         
-        #png_prefix = f"mesh_{batch_idx}"
+            png_prefix = f"mesh_{batch_idx}"
+  
+            orig_and_rec_pngs = []
+            for camera in CAMERA_VIEWS:
+                orig_png, rec_png, orig_and_rec_png = [ f"{png_prefix}_{camera}_{suffix}.png" for suffix in ["_orig", "_rec", ""] ]
+                render_mesh_as_png(_s, faces, orig_png, camera_position=camera)
+                render_mesh_as_png(_s_hat, faces, rec_png, camera_position=camera)
+                merge_pngs( [orig_png, rec_png], orig_and_rec_png, how="horizontally") 
+                orig_and_rec_pngs.append(orig_and_rec_png)
 
-        #orig_png, rec_png, full_png = ( f"{png_prefix}{suffix}.png" for suffix in ["_orig", "_rec", ""] )
+            full_png = png_prefix + ".png"
+            merge_pngs(orig_and_rec_pngs, full_png, how="vertically")
 
-        #render_mesh_as_png(_s, faces, orig_png)
-        #render_mesh_as_png(_s_hat, faces, rec_png)
-
-        #merge_pngs_horizontally( orig_png, rec_png, full_png ) 
-
-        #self.logger.experiment.log_artifact(
-        #    local_path=full_png,
-        #    artifact_path="images", 
-        #    run_id=self.logger.run_id
-        #)
+            self.logger.experiment.log_artifact(
+                local_path=full_png,
+                artifact_path="images", 
+                run_id=self.logger.run_id
+            )
 
         return {"id": id, "z": z}
 
@@ -252,45 +261,3 @@ class AutoencoderLightning(pl.LightningModule):
         )
 
 
-def render_mesh_as_png(mesh3D, faces, filename, camera_position='xy', show_edges=False, **kwargs):
-
-	'''  
-	Produces a png file representing a static 3D mesh.
-	- params
-	::mesh3D:: a sequence of Trimesh mesh objects. 
-	::faces:: array of F x 3 containing the indices of the mesh's triangular faces.
-	::filename:: the name of the output png file. 
-	::camera_position:: camera position for pyvista plotter (check relevant docs)
-
-	- return:  
-	None, only produces the png file. 
-	'''
-
-	pv.set_plot_theme("document")
-	plotter = pv.Plotter(off_screen=True, notebook=False)
-	connectivity = np.c_[np.ones(faces.shape[0]) * 3, faces].astype(int)
-
-	try:
-	    # if mesh3D is torch.Tensor, this your should run OK
-	    mesh3D = mesh3D.cpu().numpy()
-	except:
-	    pass
-
-	mesh = pv.PolyData(mesh3D, connectivity)
-	actor = plotter.add_mesh(mesh, show_edges=show_edges)
-	plotter.camera_position = camera_position
-	plotter.screenshot(filename if filename.endswith("png") else filename + ".png")
-
-
-def merge_pngs_horizontally(png1, png2, output_png):
-    # https://www.tutorialspoint.com/python_pillow/Python_pillow_merging_images.htm
-    # Read the two images
-    image1 = Image.open(png1)
-    image2 = Image.open(png2)
-    # resize, first image
-    image1_size = image1.size
-    # image2_size = image2.size
-    new_image = Image.new('RGB', (2 * image1_size[0], image1_size[1]), (250, 250, 250))
-    new_image.paste(image1, (0, 0))
-    new_image.paste(image2, (image1_size[0], 0))
-    new_image.save(output_png, "PNG")

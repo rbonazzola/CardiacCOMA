@@ -43,6 +43,12 @@ class Autoencoder3DMesh(nn.Module):
         x_hat = self.decoder(z)
         return x_hat, bottleneck
 
+    def sampling(self, mu, log_var):
+        std = torch.exp(0.5*log_var)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu)
+
+
     def set_mode(self, mode):
         self.mode = mode
 
@@ -108,6 +114,8 @@ class Encoder3DMesh(nn.Module):
 
         if self._is_variational:
             self.enc_lin_var = torch.nn.Linear(self._n_features_before_z, self.latent_dim)
+        
+        self.reset_parameters()
 
     def _build_encoder(self):
 
@@ -203,6 +211,14 @@ class Encoder3DMesh(nn.Module):
         log_var = self.enc_lin_var(x) if self._is_variational else None
 
         return {"mu": mu, "log_var": log_var}
+
+    def reset_parameters(self):
+        if self._is_variational:
+            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, 0.001)
+            torch.nn.init.normal_(self.enc_lin_var.weight, 0, 0.0001)
+        else:
+            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, 0.001)
+
 
 ################# DECODER #################
 

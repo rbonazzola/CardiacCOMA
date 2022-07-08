@@ -159,7 +159,7 @@ def get_lightning_trainer(trainer_args):
     # trainer
     trainer_kwargs = {
         "callbacks": [
-            EarlyStopping(monitor="val_loss", mode="min", patience=10),
+            EarlyStopping(monitor="val_loss", mode="min", patience=20, check_finite=True),
             RichModelSummary(max_depth=-1)
         ],
         "gpus": [trainer_args.gpus],

@@ -1,36 +1,69 @@
+import pyvista as pv
 import numpy as np
 from PIL import Image
 import imageio
 
-def merge_pngs_horizontally(png1, png2, output_png):
+def render_mesh_as_png(mesh3D, faces, filename, camera_position='xy', show_edges=False, **kwargs):
+
+	'''  
+	Produces a png file representing a static 3D mesh.
+	- params
+	::mesh3D:: a sequence of Trimesh mesh objects. 
+	::faces:: array of F x 3 containing the indices of the mesh's triangular faces.
+	::filename:: the name of the output png file. 
+	::camera_position:: camera position for pyvista plotter (check relevant docs)
+
+	- return:  
+	None, only produces the png file. 
+	'''
+
+	pv.set_plot_theme("document")
+	plotter = pv.Plotter(off_screen=True, notebook=False)
+	connectivity = np.c_[np.ones(faces.shape[0]) * 3, faces].astype(int)
+
+	try:
+	    # if mesh3D is torch.Tensor, this your should run OK
+            # I am casting to np.single in case I train with 16 bit precision (because VTK doesn't like 16 bit precision)
+	    mesh3D = mesh3D.cpu().numpy().astype(np.single)
+	except:
+	    pass
+
+	mesh = pv.PolyData(mesh3D, connectivity)
+	actor = plotter.add_mesh(mesh, show_edges=show_edges)
+	plotter.camera_position = camera_position
+	plotter.screenshot(filename if filename.endswith("png") else filename + ".png")
+
+def merge_pngs(pngs, output_png, how):
     # https://www.tutorialspoint.com/python_pillow/Python_pillow_merging_images.htm
-    # Read the two images
-    image1 = Image.open(png1)
-    image2 = Image.open(png2)
-    # resize, first image
-    image1_size = image1.size
-    # image2_size = image2.size
-    new_image = Image.new('RGB', (2 * image1_size[0], image1_size[1]), (250, 250, 250))
-    new_image.paste(image1, (0, 0))
-    new_image.paste(image2, (image1_size[0], 0))
+    
+    # Read images    
+    images = [Image.open(png) for png in pngs]    
+    
+    x_sizes = [image.size[0] for image in images]
+    y_sizes = [image.size[1] for image in images]
+    
+    if how == "vertically":      
+      y_size = sum(y_sizes)  
+      x_size = images[0].size[0]      
+      y_sizes.insert(0, 0)      
+      y_positions = np.cumsum(y_sizes[:-1])    
+      positions = [(0, y_position) for y_position in y_positions]
+    
+    elif how == "horizontally":
+      x_size = sum(x_sizes)      
+      y_size = images[0].size[1]      
+      x_sizes.insert(0, 0)      
+      x_positions = np.cumsum(x_sizes[:-1])    
+      positions = [(x_position, 0) for x_position in x_positions]
+    
+    
+    new_image = Image.new(
+        mode='RGB',
+        size=(x_size, y_size),
+        color=(250, 250, 250)
+    )
+    
+    for i, image in enumerate(images):        
+        new_image.paste(image, positions[i])
+        
     new_image.save(output_png, "PNG")
-
-
-def merge_gifs_horizontally(gif_file1, gif_file2, output_file):
-    # Create reader object for the gif
-    gif1 = imageio.get_reader(gif_file1)
-    gif2 = imageio.get_reader(gif_file2)
-
-    # Create writer object
-    new_gif = imageio.get_writer(output_file)
-
-    for frame_number in range(gif1.get_length()):
-        img1 = gif1.get_next_data()
-        img2 = gif2.get_next_data()
-        # here is the magic
-        new_image = np.hstack((img1, img2))
-        new_gif.append_data(new_image)
-
-    gif1.close()
-    gif2.close()
-    new_gif.close()
