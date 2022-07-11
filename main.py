@@ -37,6 +37,9 @@ def main(config, trainer_args):
             experiment = mlflow.get_experiment_by_name(config.mlflow.experiment_name)
             exp_id = experiment.experiment_id
 
+        print(f"Experiment ID: {exp_id} ({config.mlflow.experiment_name})")
+        print(f"Run ID: {trainer.logger.run_id}")
+
         run_info = {
             "run_id": trainer.logger.run_id,
             "experiment_id": exp_id,
