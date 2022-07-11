@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pyvista as pv
 import pytorch_lightning as pl
 import torch
@@ -236,7 +238,7 @@ class AutoencoderLightning(pl.LightningModule):
     def _collect_ids(self, outputs, filename=None):
         ids = [x["id"] for x in outputs]
         ids = [id for sublist in ids for id in sublist]
-        ids = pd.DataFrame(ids, columns=["id"])
+        ids = pd.DataFrame(ids, columns=["ID"])
         if filename is not None:
             ids.to_csv(filename, index=False)
             self.logger.experiment.log_artifact(
@@ -255,6 +257,15 @@ class AutoencoderLightning(pl.LightningModule):
         z_df = pd.concat([ids, z_df], axis=1)
         z_df.to_csv(filename, index=False)       
  
+        corr_matrix = z_df.corr()
+        sns.heatmap(corr_matrix, annot=True)
+        plt.savefig("z_corr_matrix.png")
+
+        self.logger.experiment.log_artifact(
+            local_path = "z_corr_matrix.png",
+            artifact_path = "output", run_id=self.logger.run_id
+        )
+
         self.logger.experiment.log_artifact(
             local_path = filename,
             artifact_path = "output", run_id=self.logger.run_id
