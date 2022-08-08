@@ -17,6 +17,16 @@ import pprint
 
 from IPython import embed
 
+def get_exp_id(mlflow_config):
+    try:
+            exp_id = mlflow.create_experiment(mlflow_config.experiment_name, artifact_location=config.mlflow.artifact_location)
+    except:
+          # If the experiment already exists, we can just retrieve its ID
+            experiment = mlflow.get_experiment_by_name(mlflow_config.experiment_name)
+            exp_id = experiment.experiment_id
+
+    return exp_id
+
 ###
 def main(config, trainer_args):
 
@@ -29,13 +39,7 @@ def main(config, trainer_args):
     if config.mlflow:
 
         mlflow.pytorch.autolog(log_models=False)
-
-        try:
-            exp_id = mlflow.create_experiment(config.mlflow.experiment_name, artifact_location=config.mlflow.artifact_location)
-        except:
-          # If the experiment already exists, we can just retrieve its ID
-            experiment = mlflow.get_experiment_by_name(config.mlflow.experiment_name)
-            exp_id = experiment.experiment_id
+        exp_id = get_exp_id(config.mlflow)
 
         print(f"Experiment ID: {exp_id} ({config.mlflow.experiment_name})")
         print(f"Run ID: {trainer.logger.run_id}")
