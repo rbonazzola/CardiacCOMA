@@ -162,7 +162,7 @@ def get_lightning_trainer(trainer_args):
             EarlyStopping(monitor="val_loss", mode="min", patience=20, check_finite=True),
             RichModelSummary(max_depth=-1)
         ],
-        "gpus": [trainer_args.gpus],
+        "gpus": trainer_args.gpus,
         "auto_select_gpus": trainer_args.auto_select_gpus,
         "min_epochs": trainer_args.min_epochs, "max_epochs": trainer_args.max_epochs,
         "auto_scale_batch_size": trainer_args.auto_scale_batch_size,
