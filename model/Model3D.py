@@ -9,6 +9,9 @@ from IPython import embed # left there for debugging if needed
 
 #TODO: Implement common parent class for encoder and decoder (GraphConvStack?), to capture common behaviour.
 
+SD_ENCLIN_MU = 1e-4
+SD_ENCLIN_VAR = 1e-6
+
 ################# FULL AUTOENCODER #################
 
 class Autoencoder3DMesh(nn.Module):
@@ -214,10 +217,10 @@ class Encoder3DMesh(nn.Module):
 
     def reset_parameters(self):
         if self._is_variational:
-            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, 0.001)
-            torch.nn.init.normal_(self.enc_lin_var.weight, 0, 0.0001)
+            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, SD_ENCLIN_MU)
+            torch.nn.init.normal_(self.enc_lin_var.weight, 0, SD_ENCLIN_VAR)
         else:
-            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, 0.001)
+            torch.nn.init.normal_(self.enc_lin_mu.weight, 0, SD_ENCLIN_MU)
 
 
 ################# DECODER #################
