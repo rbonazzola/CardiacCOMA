@@ -138,6 +138,11 @@ dataset_args = {
 }
 
 training_args = {
+    ("--seed ",): {
+        "help": "Random seed",
+        "dest": "config.seed",
+        "type": int,
+        "action": ArgumentAction},
     ("--learning_rate", "-lr",): {
         "help": "Learning rate",
         "dest": "config.optimizer.parameters.lr",
@@ -156,7 +161,7 @@ training_args = {
 }
 
 mlflow_args = {
-    ("--disable_mlflow_logging",): {
+    ("--no_mlflow",): {
         "help": "Set this flag if you don't want to log the run's data to MLflow.",
         "default": False,
         "action": "store_true"},
