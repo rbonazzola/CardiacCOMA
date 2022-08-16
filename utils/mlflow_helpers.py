@@ -109,11 +109,13 @@ def get_runs_df(exp_name="Cardiac - ED", sort_by="metrics.test_recon_loss", only
 
 
 def get_good_runs(
-      exp_name="Cardiac - ED", metric='metrics.test_recon_loss',  
-      metric_thres=1, 
-      cols_of_interest = ['experiment_id', 'run_id', 'params.latent_dim', 'metrics.test_recon_loss']
-    ) -> pd.DataFrame:
-    
+    exp_name="Cardiac - ED",
+    metric: str = 'metrics.test_recon_loss',
+    metric_thres: float = 1,
+    cols_of_interest = ['experiment_id', 'run_id', 'params.latent_dim', 'metrics.test_recon_loss'],
+    output_file: Union[None, str] = None
+  ) -> pd.DataFrame:
+
     '''
     Returns a DataFrame with the runs that satisfy a performance criterion.
 
@@ -122,11 +124,16 @@ def get_good_runs(
         metric (str):
         metric_thres (float): 
         cols_of_interest (List[str]):
-    '''    
+    '''
 
     exp_id = mlflow.get_experiment_by_name(exp_name).experiment_id
     runs_df = mlflow.search_runs(experiment_ids=[exp_id],)
     good_runs_df = runs_df[runs_df[metric] < metric_thres][cols_of_interest]
+    good_runs_df = good_runs_df.sort_values(metric).reset_index(drop=True)
+
+    if output_file is not None:
+        good_runs_df.to_csv(output_file, header=True, index=False)
+
     return good_runs_df
 
 
