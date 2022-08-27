@@ -1,6 +1,6 @@
 import mlflow
 import os
-from typing import List
+from typing import List, Union
 import pandas as pd
 from subprocess import check_output
 
@@ -207,7 +207,15 @@ def get_significant_loci(
       "chr2_108": "TTN",
       "chr6_78": "PLN",
       "chr6_79": "PLN",
-      "chr17_27": "GOSR2"
+      "chr17_27": "GOSR2",
+      "chr5_103": "CREBRF*",
+      "chr12_69": "TBX5",
+      "chr21_10": "NCSTNP1*",
+      "chr1_124": "CHTOP*",
+      "chr10_69": "RBM20",
+      "chr12_19": "CCDC91*",
+      "chr6_20": "HFE*",
+      "chr11_2": "LSP1*"
     }   
  
     def get_phenoname(path):
@@ -218,7 +226,7 @@ def get_significant_loci(
     
     run_info = runs_df.loc[experiment_id, run_id].to_dict()
     artifact_uri = run_info["artifact_uri"].replace("file://", "")    
-    
+   
     summaries_fileinfo = client._tracking_client.list_artifacts(run_id, path="GWAS/summaries")
     if len(summaries_fileinfo) == 0:
         return pd.DataFrame(columns=["run", "pheno", "region"])
@@ -229,7 +237,9 @@ def get_significant_loci(
     df['locus_name'] = df.apply(lambda row: LOCUS_NAMES.get(row["region"], "Unnamed"), axis=1)
     df = df.set_index(["pheno", "region"])    
     
-    return df[df.P < p_threshold].sort_values(by="P")
+    df_filtered = df[df.P < p_threshold]
+    #print(df_filtered)
+    return df_filtered.sort_values(by="P")
 
 
 def summarize_loci_across_runs(runs_df: pd.DataFrame):
