@@ -3,7 +3,7 @@ import torch
 import random
 import pickle as pkl
 import numpy as np
-from utils.VTKHelpers.CardiacMesh import CardiacMeshPopulation, Cardiac3DMesh
+from utils.CardioMesh.CardiacMesh import CardiacMeshPopulation, Cardiac3DMesh
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from typing import Any, List, Mapping, Optional, Sequence, Tuple, Union, Dict
 

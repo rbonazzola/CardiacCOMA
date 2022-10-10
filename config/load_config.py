@@ -130,27 +130,33 @@ def load_yaml_config(yaml_config_file):
     config = recursive_namespace(config)
 
     # The following parameters are meant to be lists of numbers, so they are parsed here from their string representation in the YAML file.
-    config.network_architecture.convolution.parameters.polynomial_degree = \
-    [int(x) for x in config.network_architecture.convolution.parameters.polynomial_degree.split()]
+    if isinstance(config.network_architecture.convolution.parameters.polynomial_degree, str):
+      config.network_architecture.convolution.parameters.polynomial_degree = \
+      [int(x) for x in config.network_architecture.convolution.parameters.polynomial_degree.split()]
     
-    config.network_architecture.pooling.parameters.downsampling_factors = \
-    [int(x) for x in config.network_architecture.pooling.parameters.downsampling_factors.split()]
+    if isinstance(config.network_architecture.pooling.parameters.downsampling_factors, str):
+      config.network_architecture.pooling.parameters.downsampling_factors = \
+      [int(x) for x in config.network_architecture.pooling.parameters.downsampling_factors.split()]
 
     if hasattr(config.network_architecture.convolution, "channels"):
-      config.network_architecture.convolution.channels = \
-      [int(x) for x in config.network_architecture.convolution.channels.split()]
-
+      if isinstance(config.network_architecture.convolution.channels, str):
+        config.network_architecture.convolution.channels = \
+        [int(x) for x in config.network_architecture.convolution.channels.split()]      
+        
     if hasattr(config.network_architecture.convolution, "channels_enc"):
-      config.network_architecture.convolution.channels_enc = \
-      [int(x) for x in config.network_architecture.convolution.channels_enc.split()]
+      if isinstance(config.network_architecture.convolution.channels_enc, str):
+        config.network_architecture.convolution.channels_enc = \
+        [int(x) for x in config.network_architecture.convolution.channels_enc.split()]
   
     if hasattr(config.network_architecture.convolution, "channels_dec"):
-      config.network_architecture.convolution.channels_dec = \
-      [int(x) for x in config.network_architecture.convolution.channels_dec.split()]
+      if isinstance(config.network_architecture.convolution.channels_dec, str):
+        config.network_architecture.convolution.channels_dec = \
+        [int(x) for x in config.network_architecture.convolution.channels_dec.split()]
 
     if hasattr(config.network_architecture, "activation_function"):
-      config.network_architecture.activation_function = \
-      [x for x in config.network_architecture.activation_function.split()]
+      if isinstance(config.network_architecture.activation_function, str):
+        config.network_architecture.activation_function = \
+        [x for x in config.network_architecture.activation_function.split()]
     
     sanity_check(config)
 
