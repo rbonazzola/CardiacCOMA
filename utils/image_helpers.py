@@ -33,28 +33,48 @@ def render_mesh_as_png(mesh3D, faces, filename, camera_position='xy', show_edges
 	plotter.camera_position = camera_position
 	plotter.screenshot(filename if filename.endswith("png") else filename + ".png")
 
-def merge_pngs(pngs, output_png, how):
+    
+def merge_pngs(
+    images: Union[List[str], List[Image.Image]], 
+    output_png: Union[None, str],
+    how: Literal['horizontally', 'vertically'] = "horizontally") -> Image.Image:
+
+    '''
+    params:
+      - pngs: list of either 1) png paths or 2) PIL.Image.Image objects
+      - output_png (option): path of the output path
+      - how: along which axis to merge images horizontally or vertically
+    return:
+      - a pillow image with the merged images.
+    '''
+    
+    # Reference:
     # https://www.tutorialspoint.com/python_pillow/Python_pillow_merging_images.htm
     
-    # Read images    
-    images = [Image.open(png) for png in pngs]    
+    # Read images
+    if isinstance(pngs[0], str):
+        images = [Image.open(png) for png in pngs]    
+    elif isinstance(pngs[0], Image.Image):
+        pass
+    else:
+        raise TypeError("'images' argument must be either a list of paths or a list of pillow images.")
     
     x_sizes = [image.size[0] for image in images]
     y_sizes = [image.size[1] for image in images]
     
     if how == "vertically":      
-      y_size = sum(y_sizes)  
-      x_size = images[0].size[0]      
-      y_sizes.insert(0, 0)      
-      y_positions = np.cumsum(y_sizes[:-1])    
-      positions = [(0, y_position) for y_position in y_positions]
+        y_size = sum(y_sizes)  
+        x_size = images[0].size[0]      
+        y_sizes.insert(0, 0)      
+        y_positions = np.cumsum(y_sizes[:-1])    
+        positions = [(0, y_position) for y_position in y_positions]
     
     elif how == "horizontally":
-      x_size = sum(x_sizes)      
-      y_size = images[0].size[1]      
-      x_sizes.insert(0, 0)      
-      x_positions = np.cumsum(x_sizes[:-1])    
-      positions = [(x_position, 0) for x_position in x_positions]
+        x_size = sum(x_sizes)      
+        y_size = images[0].size[1]      
+        x_sizes.insert(0, 0)      
+        x_positions = np.cumsum(x_sizes[:-1])    
+        positions = [(x_position, 0) for x_position in x_positions]
     
     
     new_image = Image.new(
@@ -66,4 +86,7 @@ def merge_pngs(pngs, output_png, how):
     for i, image in enumerate(images):        
         new_image.paste(image, positions[i])
         
-    new_image.save(output_png, "PNG")
+    if output_png is not None:
+        new_image.save(output_png, "PNG")
+
+    return new_image
