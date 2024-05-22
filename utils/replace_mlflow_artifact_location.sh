@@ -1,4 +1,4 @@
-OPATHS=("\/usr\/not-backed-up\/scrb\/src" "\/app")
+OPATHS=("\/usr\/not-backed-up\/scrb\/src" "\/app" "\/home\/user\/s3" )
 NEW_PATH="\/home\/rodrigo\/CISTIB\/repos"
 MLFLOW_URI="../mlruns"
 EXPERIMENT_PATTERN="\/[0-9]\/"

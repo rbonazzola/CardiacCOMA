@@ -1,6 +1,12 @@
+import mlflow
+import os
+from typing import List, Union
+import pandas as pd
 from subprocess import check_output
+import torch
 
 def get_mlflow_parameters(config):
+
     loss = config.loss
     net = config.network_architecture
     loss_params = {
@@ -70,3 +76,251 @@ def print_auto_logged_info(r):
     print("params: {}".format(r.data.params))
     print("metrics: {}".format(r.data.metrics))
     print("tags: {}".format(tags))
+
+    
+def list_experiments_by_name():
+    options = [exp.name for exp in mlflow.list_experiments()]
+    return options
+
+
+def get_metrics_cols(df):
+    metrics_cols = df.columns[df.columns.str.startswith("metrics")]
+    return metrics_cols
+
+
+def get_params_cols(df):
+    params_cols = df.columns[df.columns.str.startswith("params")]
+    return params_cols
+
+
+def get_runs_df(exp_name="Cardiac - ED", sort_by="metrics.test_recon_loss", only_finished=True):
+
+  # runs_list = mlflow.search_runs(experiment_ids=[exp_id], output_format="list")
+  exp_id = mlflow.get_experiment_by_name(exp_name).experiment_id
+  runs_df = mlflow.search_runs(experiment_ids=[exp_id],)
+
+  # Keep only the runs that ended successfully
+  if only_finished:
+      runs_df = runs_df[runs_df.status == "FINISHED"].reset_index(drop=True)
+
+  # Use experiment ID and run ID as indices
+  runs_df = runs_df.set_index(["experiment_id", "run_id"])
+  
+  try:
+      runs_df = runs_df.sort_values(by=sort_by)
+  except:
+      pass
+    
+  return runs_df
+
+
+def get_good_runs(
+    exp_name="Cardiac - ED",
+    metric: str = 'metrics.test_recon_loss',
+    metric_thres: float = 1,
+    cols_of_interest = ['experiment_id', 'run_id', 'params.latent_dim', 'metrics.test_recon_loss'],
+    output_file: Union[None, str] = None
+  ) -> pd.DataFrame:
+
+    '''
+    Returns a DataFrame with the runs that satisfy a performance criterion.
+
+    Parameters:
+        exp_name (str): MLflow experiment name.
+        metric (str):
+        metric_thres (float): 
+        cols_of_interest (List[str]):
+    '''
+
+    exp_id = mlflow.get_experiment_by_name(exp_name).experiment_id
+    runs_df = mlflow.search_runs(experiment_ids=[exp_id],)
+    good_runs_df = runs_df[runs_df[metric] < metric_thres][cols_of_interest]
+    good_runs_df = good_runs_df.sort_values(metric).reset_index(drop=True)
+
+    if output_file is not None:
+        good_runs_df.to_csv(output_file, header=True, index=False)
+
+    return good_runs_df
+
+
+def list_artifacts(
+      experiment_id: str, run_id: str, path=".", 
+      recursive=True, client=mlflow.tracking.MlflowClient()
+    ) -> List[mlflow.entities.file_info.FileInfo]:
+    
+    '''
+    Lists all artifacts available for the given MLflow run
+    
+    Examples:
+        list_artifacts(exp_id, run_id, path="GWAS")
+        list_artifacts(exp_id, run_id, path="GWAS/summaries")
+    '''
+    
+    from copy import deepcopy
+    
+    artifacts = client._tracking_client.list_artifacts(run_id, path=path)
+    
+    if not recursive or all([not x.is_dir for x in artifacts]):
+        return artifacts
+    
+    else:
+        kk = deepcopy(artifacts)
+        for artifact in kk:
+            if artifact.is_dir:
+                more_artifacts = list_artifacts(experiment_id, run_id, artifact.path)                
+                artifacts.extend(more_artifacts)
+        return artifacts
+
+
+def get_model_pretrained_weights(runs_df, experiment_id, run_id):
+    
+    '''
+    
+    '''
+    
+    run_info = runs_df.loc[experiment_id, run_id].to_dict()
+    artifact_uri = run_info["artifact_uri"].replace("file://", "")   
+ 
+    #TODO: modify this
+    try:
+        chkpt_dir = os.path.join(artifact_uri, "restored_model_checkpoint")
+        os.listdir(chkpt_dir)
+    except:
+        chkpt_dir = os.path.join(os.path.dirname(artifact_uri), "checkpoints")
+    
+    chkpt_file = os.path.join(chkpt_dir, os.listdir(chkpt_dir)[0])
+    
+    model_pretrained_weights = torch.load(chkpt_file, map_location=torch.device('cpu'))["state_dict"]
+    
+    # Remove "model." prefix from state_dict's keys.
+    _model_pretrained_weights = {k.replace("model.", ""): v for k, v in model_pretrained_weights.items()}
+    # print(_model_pretrained_weights)
+    return _model_pretrained_weights
+    
+
+def get_significant_loci(
+    runs_df,
+    experiment_id, run_id, 
+    p_threshold=1e-8, 
+    client=mlflow.tracking.MlflowClient()
+) -> pd.DataFrame:
+    
+    '''    
+    Returns a DataFrame with the loci that have a stronger p-value than a given threshold
+    '''
+    
+    LOCUS_NAMES = {
+      "chr2_108": "TTN",
+      "chr6_78": "PLN",
+      "chr6_79": "PLN",
+      "chr17_27": "GOSR2",
+      "chr5_103": "CREBRF*",
+      "chr12_69": "TBX5",
+      "chr21_10": "NCSTNP1*",
+      "chr1_124": "CHTOP*",
+      "chr10_69": "RBM20",
+      "chr12_19": "CCDC91*",
+      "chr6_20": "HFE*",
+      "chr11_2": "LSP1*"
+    }   
+ 
+    def get_phenoname(path):
+        
+        filename = os.path.basename(path)
+        phenoname = filename.split("__")[0]
+        return phenoname
+    
+    run_info = runs_df.loc[experiment_id, run_id].to_dict()
+    artifact_uri = run_info["artifact_uri"].replace("file://", "")    
+   
+    summaries_fileinfo = client._tracking_client.list_artifacts(run_id, path="GWAS/summaries")
+    if len(summaries_fileinfo) == 0:
+        return pd.DataFrame(columns=["run", "pheno", "region"])
+    
+    region_summaries = {get_phenoname(x.path): os.path.join(artifact_uri, x.path) for x in summaries_fileinfo}
+    dfs = [pd.read_csv(path).assign(pheno=pheno) for pheno, path in region_summaries.items()]
+    df = pd.concat(dfs)
+    df['locus_name'] = df.apply(lambda row: LOCUS_NAMES.get(row["region"], "Unnamed"), axis=1)
+    df = df.set_index(["pheno", "region"])    
+    
+    df_filtered = df[df.P < p_threshold]
+    #print(df_filtered)
+    return df_filtered.sort_values(by="P")
+
+
+def summarize_loci_across_runs(runs_df: pd.DataFrame):
+
+    '''
+    Parameters: run_ids
+    Return: pd.DataFrame with ["count", "min_P"].
+    '''
+
+    # run_ids = sorted([x[1] for x in runs_df[runs_df["metrics.test_recon_loss"] < RECON_LOSS_THRES].index])
+    run_ids = sorted([x[1] for x in runs_df.index])
+
+    all_signif_loci = pd.concat([
+      get_significant_loci(runs_df, experiment_id="1", run_id=run_id).\
+        assign(run=run_id).\
+        reset_index().\
+        set_index(["run", "pheno", "region"]) 
+      for run_id in run_ids
+    ])
+
+    df = all_signif_loci.\
+      groupby(["region", "locus_name"]).\
+      aggregate({"CHR":"count", "P": "min"}).\
+      rename({"CHR":"count", "P":"min_P"}, axis=1).\
+      sort_values("count", ascending=False)    
+    
+    return df
+
+
+import os
+import yaml
+
+def fix_meta_files(uri):
+    
+    '''
+    '''
+    
+    for root, dirs, files in os.walk(uri):
+        
+        for file in files:
+            
+            if file == "meta.yaml":
+                meta_path = os.path.join(root, file)
+                
+                experiment_id = os.path.dirname(root).split("/")[-1]
+                # print(experiment_id)
+                
+                with open(meta_path, "r") as f:
+                    meta = yaml.safe_load(f)
+                                
+                old_experiment_id = meta["experiment_id"]
+                # print(old_experiment_id)
+                new_experiment_id = experiment_id
+                
+                if old_experiment_id != new_experiment_id:
+                    # print(new_experiment_id)
+                    meta["experiment_id"] = new_experiment_id
+                
+                    with open(meta_path, "w") as f:
+                        yaml.dump(meta, f)
+                    
+                    print(f"Fixed {meta_path}")
+                else:
+                    print(f"Skipped {meta_path}")
+
+
+# class ComaRun(mlflow.entities.Run):
+#     
+#     def __init__(self, exp_id, run_id):
+#         
+#         super
+#         
+#     def model(self):
+#         
+# 
+#     def gwas_summary(self):
+#         
+#         return [os.path.join(artifact_uri, x.path) for x in client._tracking_client.list_artifacts(run_id, path="GWAS/summaries")]

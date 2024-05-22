@@ -1,5 +1,5 @@
 import argparse
-from config.load_config import load_yaml_config, to_dict, flatten_dict, rsetattr, rgetattr
+from .load_config import load_yaml_config, to_dict, flatten_dict, rsetattr, rgetattr
 from copy import deepcopy
 
 

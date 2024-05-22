@@ -3,15 +3,16 @@ import torch
 import random
 import pickle as pkl
 import numpy as np
-from utils.VTKHelpers.CardiacMesh import CardiacMeshPopulation, Cardiac3DMesh
+from utils.CardioMesh.CardiacMesh import CardiacMeshPopulation, Cardiac3DMesh, transform_mesh
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from typing import Any, List, Mapping, Optional, Sequence, Tuple, Union, Dict
 
+from copy import copy
 import pytorch_lightning as pl
 import logging
 from argparse import Namespace
 
-NUM_WORKERS = 1
+from tqdm import tqdm
 
 def load_procrustes_transforms(filename):    
     return pkl.load(open(filename, "rb"))   
@@ -30,7 +31,7 @@ class CardiacMeshPopulationDataset(TensorDataset):
        '''
     
        if not isinstance(meshes, dict):                       
-           raise(f"Argument should be a dictionary but is a {type(meshes)}")
+           raise TypeError(f"Argument should be a dictionary but is a {type(meshes)}")
            
        self.ids = list(meshes.keys())
        self.meshes = np.array(list(meshes.values()))            
@@ -39,19 +40,22 @@ class CardiacMeshPopulationDataset(TensorDataset):
            procrustes_transforms = load_procrustes_transforms(procrustes_transforms)
        
        ids = list(meshes.keys())
-       procrustes_transforms = { id: procrustes_transforms.get(id, {"discard": True}) for id in ids }
+        
+       procrustes_transforms = { 
+           id: procrustes_transforms.get(id, None) for id in ids 
+       }
                         
-       for id in self.ids:
+       for id in tqdm(self.ids):
            idx = self.ids.index(id)
-           self.meshes[idx] = self.transform_mesh(self.meshes[idx], **procrustes_transforms[id])
+           if procrustes_transforms[id] is not None:
+               self.meshes[idx] = transform_mesh(self.meshes[idx], **procrustes_transforms[id])
        
        self.meshes = torch.Tensor(self.meshes)
         
        self._data_dict = { 
             self.ids[i]:self.meshes[i] for i, _ in enumerate(self.meshes) 
        }
-
-    
+            
     def __getitem__(self, id):
    
        if isinstance(id, int):
@@ -65,29 +69,31 @@ class CardiacMeshPopulationDataset(TensorDataset):
                     "id": id,
                     "s": self._data_dict[id]
                 }
-           except:
+           except KeyError:
+                print(f" Key {id} not found")
                 return None
        
     def __len__(self):
        return len(self.ids)        
         
     
-    def transform_mesh(self, mesh, rotation: Union[None, np.array] = None, traslation: Union[None, np.array] = None, discard=False):
-        
-        if discard:
-            return None
-        
-        if traslation is not None:
-            mesh = mesh - traslation
-            
-        if rotation is not None:
-            centroid = mesh.mean(axis=0)
-            mesh -= centroid
-            mesh = mesh.dot(rotation)
-            mesh += centroid
-            
-        return mesh 
+    # def transform_mesh(self, mesh, rotation: Union[None, np.array] = None, traslation: Union[None, np.array] = None, discard=False):
+    #   
+    #   if discard:
+    #       return None
+    #   
+    #   if traslation is not None:
+    #       mesh = mesh - traslation
+    #       
+    #   if rotation is not None:
+    #       centroid = mesh.mean(axis=0)
+    #       mesh -= centroid
+    #       mesh = mesh.dot(rotation)
+    #       mesh += centroid
+    #       
+    #   return mesh 
 
+    
 class DataModule(pl.LightningDataModule):    
     
     '''
@@ -101,7 +107,10 @@ class DataModule(pl.LightningDataModule):
         #cardiac_population: Union[Mapping[str, np.array], CardiacMeshPopulation, None] = None, 
         #procrustes_transforms: Union[str, Mapping[str, Dict[str, np.array]], None] = None,
         batch_size: Union[int, list] = [32, 2, 1],
-        split_lengths: Union[None, List[int]]=None
+        split_lengths: Union[None, List[int]]=None,
+        random_state: Union[None, int] = None,
+        z_filename=None,
+        mse_filename=None
     ):
 
         '''
@@ -113,16 +122,26 @@ class DataModule(pl.LightningDataModule):
         
         super().__init__()
         
-        self._torch_dataset_cls = torch_dataset_cls
+        self._TorchDatasetClass = torch_dataset_cls
         self.dataset_args = dataset_args   
         self.batch_size = batch_size if isinstance(batch_size, list) else [batch_size]*3
+                
         self.split_lengths = self._get_lengths(split_lengths)
-
+        
+        self.random_state = random_state
+        if self.random_state is not None:
+            random.seed(self.random_state)
+            
+        self._z_filename = "latent_vector.csv" if z_filename is None else z_filename
+        self._mse_filename = "mse.csv" if mse_filename is None else mse_filename
+        
 
     def setup(self, stage: Optional[str] = None):
 
-        self.dataset = self._torch_dataset_cls(**self.dataset_args)
+        self.dataset = self._TorchDatasetClass(**self.dataset_args)
+        
         indices = list(range(sum(self.split_lengths)))
+                
         random.shuffle(indices)
         
         train_indices = indices[:self.split_lengths[0]]
@@ -153,29 +172,33 @@ class DataModule(pl.LightningDataModule):
         :return:
         '''
                 
-        predict_len = split_lengths.pop(-1)
+        _split_lengths = copy(split_lengths)
+        predict_len = _split_lengths.pop(-1)
 
-        if split_lengths is None:            
+        if _split_lengths is None:            
             train_len = int(0.6 * len(self.dataset))
             test_len = int(0.2 * len(self.dataset))
             val_len = len(self.dataset) - train_len - test_len            
             
-        elif all([l > 1 for l in split_lengths]):            
+        elif all([l >= 1 for l in _split_lengths]):            
             
-            train_len = split_lengths[0]
-            test_len = split_lengths[1]
-            val_len = split_lengths[2]
+            try:
+                train_len = _split_lengths[0]
+                test_len = _split_lengths[1]
+                val_len = _split_lengths[2]
+            except IndexError:
+                raise IndexError(f"split_lengths should have length three, instead is {_split_lengths}")
                
             #raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
                 
-        elif all([l < 1 for l in split_lengths]):
+        elif all([l < 1 for l in _split_lengths]):
             
-            train_len = int(split_lengths[0] * len(self.dataset))
-            test_len = int(split_lengths[1] * len(self.dataset))
-            if len(split_lengths) == 2:
+            train_len = int(_split_lengths[0] * len(self.dataset))
+            test_len = int(_split_lengths[1] * len(self.dataset))
+            if len(_split_lengths) == 2:
                 val_len = len(self.dataset) - train_len - test_len
-            elif len(split_lengths) == 3:            
-                val_len = int(split_lengths[2] * len(self.dataset))
+            elif len(_split_lengths) == 3:            
+                val_len = int(_split_lengths[2] * len(self.dataset))
             else:
                 raise ValueError("Bad values for split lengths. Expecting 2 or 3 fractions/integers.")
                 
@@ -191,4 +214,4 @@ class DataModule(pl.LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size[2], num_workers=NUM_WORKERS)
 
     def predict_dataloader(self):
-        return DataLoader(self.predict_dataset, batch_size=self.batch_size[0], num_workers=NUM_WORKERS)
+        return DataLoader(self.predict_dataset, batch_size=self.batch_size[0], num_workers=8)
