@@ -45,6 +45,8 @@ class AutoencoderLightning(pl.LightningModule):
         self.model = model
         self.params = params
 
+        self.optimizer = self.configure_optimizers()
+        
         self.rec_loss = self._get_rec_loss()
 
 
@@ -121,8 +123,8 @@ class AutoencoderLightning(pl.LightningModule):
         algorithm = self.params.optimizer.algorithm
         algorithm = torch.optim.__dict__[algorithm]
         parameters = vars(self.params.optimizer.parameters)
-        optimizer = algorithm(self.model.parameters(), **parameters)
-        return optimizer
+        self.optimizer = algorithm(self.model.parameters(), **parameters)
+        return self.optimizer
 
 
     def on_fit_start(self):
@@ -193,44 +195,55 @@ class AutoencoderLightning(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
 
         id, s = self._unpack_data_from_batch(batch)
-        faces = self.model.template_mesh.f
-        center_flag = self.params.dataset.preprocessing.center_around_mean
+        # faces = self.model.template_mesh.f
+        # center_flag = self.params.dataset.preprocessing.center_around_mean        
         s_hat, z = self(s)
-
-        z = z['mu']
-        _s = s[0].cpu()
-        _s_hat = s_hat[0].cpu() 
-
-        if batch_idx < N_IMAGES_LOGGED:
-
-            if center_flag:
-                _s += self.model.template_mesh.v
-                _s_hat += self.model.template_mesh.v
+        # print(s.mean(0))
+        # print(s_hat.mean(0))
         
-            png_prefix = f"mesh_{batch_idx}"
-  
-            orig_and_rec_pngs = []
-            for camera in CAMERA_VIEWS:
-                orig_png, rec_png, orig_and_rec_png = [ f"{png_prefix}_{camera}_{suffix}.png" for suffix in ["_orig", "_rec", ""] ]
-                render_mesh_as_png(_s, faces, orig_png, camera_position=camera)
-                render_mesh_as_png(_s_hat, faces, rec_png, camera_position=camera)
-                merge_pngs( [orig_png, rec_png], orig_and_rec_png, how="horizontally") 
-                orig_and_rec_pngs.append(orig_and_rec_png)
+        z = z['mu']
+        _mse = mse(s, s_hat)
+        print(_mse.mean())
+        # _s = s[0].cpu()
+        # _s_hat = s_hat[0].cpu() 
 
-            full_png = png_prefix + ".png"
-            merge_pngs(orig_and_rec_pngs, full_png, how="vertically")
-
-            self.logger.experiment.log_artifact(
-                local_path=full_png,
-                artifact_path="images", 
-                run_id=self.logger.run_id
-            )
-
-        return {"id": id, "z": z}
+        # if batch_idx < N_IMAGES_LOGGED:
+# 
+        #     if center_flag:
+        #         _s += self.model.template_mesh.v
+        #         _s_hat += self.model.template_mesh.v
+        # 
+        #     png_prefix = f"mesh_{batch_idx}"
+  # 
+        #     orig_and_rec_pngs = []
+        #     for camera in CAMERA_VIEWS:
+        #         orig_png, rec_png, orig_and_rec_png = [ f"{png_prefix}_{camera}_{suffix}.png" for suffix in ["_orig", "_rec", ""] ]
+        #         render_mesh_as_png(_s, faces, orig_png, camera_position=camera)
+        #         render_mesh_as_png(_s_hat, faces, rec_png, camera_position=camera)
+        #         merge_pngs( [orig_png, rec_png], orig_and_rec_png, how="horizontally") 
+        #         orig_and_rec_pngs.append(orig_and_rec_png)
+# 
+        #     full_png = png_prefix + ".png"
+        #     merge_pngs(orig_and_rec_pngs, full_png, how="vertically")
+# 
+        #     self.logger.experiment.log_artifact(
+        #         local_path=full_png,
+        #         artifact_path="images", 
+        #         run_id=self.logger.run_id
+        #     )
+# 
+        return {"id": id, "z": z, "mse": _mse}
 
     def on_predict_epoch_end(self, outputs):
 
-        self._log_z_vectors(outputs, "latent_vector.csv")
+        z_filename = self.trainer.datamodule._z_filename
+        mse_filename = self.trainer.datamodule._mse_filename
+        
+        z_df = self._log_z_vectors(outputs, z_filename)
+        mse_df = self._log_mse(outputs, mse_filename)
+        
+        print(z_df.head())
+        print(mse_df.head())
 
         #perf_file = "{}/performance.csv".format(output_dir)
         #perf_df = pd.DataFrame(None, columns=["mse"])
@@ -247,6 +260,28 @@ class AutoencoderLightning(pl.LightningModule):
             )
         return ids
 
+    
+    def _log_mse(self, outputs, filename):
+        
+        ids = self._collect_ids(outputs[0])
+        _mse = torch.concat([x["mse"] for x in outputs[0]], axis=0)
+        # _mse = [x for x in _mse.cpu().numpy()].transpose()
+        _mse = _mse.cpu().numpy().transpose()
+                
+        # mse_df = pd.DataFrame([ids, _mse]).transpose()
+        mse_df = pd.DataFrame([_mse]).transpose()
+        mse_df = pd.concat([ids, mse_df], axis=1)
+        mse_df.columns = ["ID", "MSE"]
+        mse_df.to_csv(filename, index=False)
+        
+        self.logger.experiment.log_artifact(
+            local_path = filename,
+            artifact_path = "output", run_id=self.logger.run_id
+        )
+        
+        return mse_df
+    
+    
     def _log_z_vectors(self, outputs, filename):
         
         z = torch.concat([x["z"] for x in outputs[0]], axis=0)
@@ -270,5 +305,7 @@ class AutoencoderLightning(pl.LightningModule):
             local_path = filename,
             artifact_path = "output", run_id=self.logger.run_id
         )
+        
+        return z_df
 
 
