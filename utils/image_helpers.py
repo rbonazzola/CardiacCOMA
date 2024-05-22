@@ -2,6 +2,7 @@ import pyvista as pv
 import numpy as np
 from PIL import Image
 import imageio
+from typing import List, Dict, Union, Literal
 
 def render_mesh_as_png(mesh3D, faces, filename, camera_position='xy', show_edges=False, **kwargs):
 
@@ -52,9 +53,9 @@ def merge_pngs(
     # https://www.tutorialspoint.com/python_pillow/Python_pillow_merging_images.htm
     
     # Read images
-    if isinstance(pngs[0], str):
-        images = [Image.open(png) for png in pngs]    
-    elif isinstance(pngs[0], Image.Image):
+    if isinstance(images[0], str):
+        images = [Image.open(image) for image in images]    
+    elif isinstance(images[0], Image.Image):
         pass
     else:
         raise TypeError("'images' argument must be either a list of paths or a list of pillow images.")
