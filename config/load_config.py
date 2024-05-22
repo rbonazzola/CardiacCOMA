@@ -3,6 +3,7 @@ import yaml
 import functools
 from argparse import Namespace
 from collections.abc import MutableMapping
+from easydict import EasyDict
 
 CONFIG_FILES_DIR = "config_files"
 
@@ -127,7 +128,8 @@ def load_yaml_config(yaml_config_file):
     # config = yaml.safe_load(config)    
     config = unfold_config(yaml_config_file)    
         # I am using a namespace instead of a dictionary mainly because it enables auto-completion
-    config = recursive_namespace(config)
+    # config = recursive_namespace(config)
+    config = EasyDict(config)
 
     # The following parameters are meant to be lists of numbers, so they are parsed here from their string representation in the YAML file.
     if isinstance(config.network_architecture.convolution.parameters.polynomial_degree, str):
