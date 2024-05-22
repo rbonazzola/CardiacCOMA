@@ -3,6 +3,7 @@ import os
 from typing import List, Union
 import pandas as pd
 from subprocess import check_output
+import torch
 
 def get_mlflow_parameters(config):
 
@@ -104,7 +105,12 @@ def get_runs_df(exp_name="Cardiac - ED", sort_by="metrics.test_recon_loss", only
 
   # Use experiment ID and run ID as indices
   runs_df = runs_df.set_index(["experiment_id", "run_id"])
-  runs_df = runs_df.sort_values(by=sort_by)
+  
+  try:
+      runs_df = runs_df.sort_values(by=sort_by)
+  except:
+      pass
+    
   return runs_df
 
 
@@ -253,11 +259,11 @@ def summarize_loci_across_runs(runs_df: pd.DataFrame):
     run_ids = sorted([x[1] for x in runs_df.index])
 
     all_signif_loci = pd.concat([
-      get_significant_loci(runs_df, "1", run).\
-        assign(run=run).\
+      get_significant_loci(runs_df, experiment_id="1", run_id=run_id).\
+        assign(run=run_id).\
         reset_index().\
         set_index(["run", "pheno", "region"]) 
-      for run in run_ids
+      for run_id in run_ids
     ])
 
     df = all_signif_loci.\
@@ -267,6 +273,44 @@ def summarize_loci_across_runs(runs_df: pd.DataFrame):
       sort_values("count", ascending=False)    
     
     return df
+
+
+import os
+import yaml
+
+def fix_meta_files(uri):
+    
+    '''
+    '''
+    
+    for root, dirs, files in os.walk(uri):
+        
+        for file in files:
+            
+            if file == "meta.yaml":
+                meta_path = os.path.join(root, file)
+                
+                experiment_id = os.path.dirname(root).split("/")[-1]
+                # print(experiment_id)
+                
+                with open(meta_path, "r") as f:
+                    meta = yaml.safe_load(f)
+                                
+                old_experiment_id = meta["experiment_id"]
+                # print(old_experiment_id)
+                new_experiment_id = experiment_id
+                
+                if old_experiment_id != new_experiment_id:
+                    # print(new_experiment_id)
+                    meta["experiment_id"] = new_experiment_id
+                
+                    with open(meta_path, "w") as f:
+                        yaml.dump(meta, f)
+                    
+                    print(f"Fixed {meta_path}")
+                else:
+                    print(f"Skipped {meta_path}")
+
 
 # class ComaRun(mlflow.entities.Run):
 #     
